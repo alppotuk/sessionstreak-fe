@@ -1,0 +1,51 @@
+// Flex helpers ---------------------------------------------------------------
+@mixin flex-center {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+  }
+  
+  @mixin flex-between {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  
+  @mixin flex-column($gap: 0) {
+    display: flex;
+    flex-direction: column;
+    gap: $gap;
+  }
+  
+  // Responsive helpers ---------------------------------------------------------
+  @mixin respond($breakpoint) {
+    @if $breakpoint == sm {
+      @media (max-width: 576px) { @content; }
+    } @else if $breakpoint == md {
+      @media (max-width: 768px) { @content; }
+    } @else if $breakpoint == lg {
+      @media (max-width: 992px) { @content; }
+    } @else if $breakpoint == xl {
+      @media (max-width: 1200px) { @content; }
+    }
+  }
+  
+  // Text overflow --------------------------------------------------------------
+  @mixin ellipsis {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  
+  // Custom scroll --------------------------------------------------------------
+  @mixin custom-scroll($size: 6px, $thumb: #ccc) {
+    &::-webkit-scrollbar {
+      width: $size;
+      height: $size;
+    }
+    &::-webkit-scrollbar-thumb {
+      background: $thumb;
+      border-radius: 100px;
+    }
+  }
+  

@@ -1,0 +1,60 @@
+@use '../../styles/variables' as *;
+@use '../../styles/mixins' as *;
+
+section.discover {
+    display: flex;
+    gap: 2rem;
+
+    div{
+        display: flex;
+    }
+
+    .header {
+        width: 100%;
+        font-size: $font-size-xl;
+       
+    }
+    .body{
+        flex-direction: column;
+        width: 100%;
+        flex: 6;
+
+        .search {
+        
+            input {
+              width: 100%;
+              padding: 1rem;
+            }
+          }
+        
+          .list {
+            flex: 1;
+            justify-content: center;
+        
+            .list-item {
+              padding: 12px;
+              border-bottom: 1px solid #ddd;
+            }
+        
+            .loading,
+            .empty {
+              padding: 20px;
+              text-align: center;
+              opacity: 0.6;
+            }
+          }
+        
+          .pagination {
+            margin-top: 2rem;
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+            justify-content: center;
+          }
+
+
+    }
+  
+   
+  }
+  

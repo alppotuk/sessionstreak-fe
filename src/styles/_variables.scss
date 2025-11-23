@@ -1,0 +1,54 @@
+// Base font sizing -----------------------------------------------------------
+$root-font-size: 62.5%;     // 1rem = 10px (optional: change to 100% for default 16px)
+$font-family-base: 'Inter', sans-serif;
+
+// Colors ---------------------------------------------------------------------
+$color-primary: #4f2431;
+$color-secondary: #db1d40;
+$color-success: #28a745;
+$color-danger: #dc3545;
+$color-dark: #232323;
+$color-light: #f8f8f8;
+$color-text: white;
+
+// Spacing scale (using rem) --------------------------------------------------
+$space-1: 0.4rem;  // 4px
+$space-2: 0.8rem;  // 8px
+$space-3: 1.2rem;  // 12px
+$space-4: 1.6rem;  // 16px
+$space-5: 2.4rem;  // 24px
+
+// Border radii ---------------------------------------------------------------
+$radius-sm: 0.4rem;
+$radius-md: 0.8rem;
+$radius-lg: 1.6rem;
+
+// Typography -----------------------------------------------------------------
+$font-size-sm: 1.2rem;   // 12px
+$font-size-md: 1.4rem;   // 14px
+$font-size-lg: 1.6rem;   // 16px
+$font-size-xl: 2.4rem;   // 24px
+
+// Z-index scale ---------------------------------------------------------------
+$z-dropdown: 1000;
+$z-sticky: 1020;
+$z-modal-backdrop: 1040;
+$z-modal: 1050;
+$z-toast: 1100;
+
+// Shadow presets --------------------------------------------------------------
+$shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.08);
+$shadow-md: 0 4px 12px rgba(0, 0, 0, 0.12);
+$shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.16);
+
+
+// Font Weights ---------------------------------------------------------------
+$font-weight-thin: 100;
+$font-weight-extra-light: 200;
+$font-weight-light: 300;
+$font-weight-normal: 400;
+$font-weight-medium: 500;
+$font-weight-semi-bold: 600;
+$font-weight-bold: 700;
+$font-weight-extra-bold: 800;
+$font-weight-black: 900;
