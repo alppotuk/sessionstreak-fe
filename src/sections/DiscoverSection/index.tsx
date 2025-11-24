@@ -10,10 +10,8 @@ export default function DiscoverSection() {
   const [page, setPage] = useState(1);
   const [pageSize] = useState(10); 
   const [totalCount, setTotalCount] = useState(0);
-  const [loading, setLoading] = useState(false);
 
   const loadData = async () => {
-    setLoading(true);
     try {
         const request : SessionsRequest = {
             pageNumber: 1,
@@ -22,15 +20,15 @@ export default function DiscoverSection() {
         
       const result: PaginationResponse<Session> = await sessionsApi.getSessions(request);
 
+      console.log("Fetched sessions:", result);
       setItems(result.data);
       setTotalCount(result.totalCount);
     } finally {
-      setLoading(false);
     }
   };
 
   useEffect(() => {
-    //loadData();
+    loadData();
   }, [page, searchText]);
 
   const totalPages = Math.ceil(totalCount / pageSize);
@@ -52,17 +50,22 @@ export default function DiscoverSection() {
       </div>
 
       <div className="list">
-        {loading && <div className="loading">Loading...</div>}
-
-        {!loading && items.length === 0 && (
+        {items.length === 0 && (
           <div className="empty">No sessions found</div>
         )}
 
-        {!loading &&
+        {
           items.map((item) => (
             <div className="list-item" key={item.id}>
-              <div className="title">{item.title}</div>
-              <div className="desc">{item.description}</div>
+              <div className="left">
+                <div className="name">{item.name}</div>
+                <div className="author">{item.ownerUsername}</div>
+              </div>
+              <div className="right">
+                <div className="start-count">{item.starCount}</div>
+                <div className="share-count">{item.shareCount}</div>
+                <div className="starred">{item.isStarred}</div>
+              </div>
             </div>
           ))}
       </div>
