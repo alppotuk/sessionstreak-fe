@@ -12,7 +12,6 @@ import logout_logo from '../../assets/logout_logo.png';
 export default function MainPage() {
   const { account } = useAuth();
   
-
   return (
   <>
     <div className='flex-container'>

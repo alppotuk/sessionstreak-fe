@@ -5,19 +5,36 @@ section.discover {
     display: flex;
     gap: 2rem;
 
-    div{
-        display: flex;
-    }
+    
 
     .header {
         width: 100%;
-        font-size: $font-size-xl;
+        justify-content: space-between;
+        p
+        {
+          font-size: $font-size-xl;
+        } 
+
+        button {
+          padding: 0.8rem 1rem;
+          font-size: $font-size-md;
+          font-weight: $font-weight-medium;
+          border: none;
+          border-radius: $radius-md;
+          cursor: pointer;
+          outline: none;
+
+          background: $color-primary;
+          color: $color-text;
+        }
+        
        
     }
     .body{
         flex-direction: column;
         width: 100%;
         flex: 6;
+        gap: 2rem;
 
         .search {
         
@@ -29,7 +46,9 @@ section.discover {
         
           .list {
             width: 100%;
+            flex: 1;
             flex-direction: column;
+            align-items: center;
             gap: 2rem;
 
             .list-item {
@@ -43,25 +62,36 @@ section.discover {
               .left{
                 flex-direction: column;
                 gap: 1rem;
+                .name{
+                  font-size: $font-size-lg;
+                }
+                .author{
+                  font-size: $font-size-md;
+                  color: rgba($color-text, 0.7);}
+                }
               }
               .right{
                 flex-direction: row;
-                gap: 1rem;
+                gap: 2rem;
+
+                div{
+                  align-items: center;
+                }
               }
             
           }
         
-          .pagination {
-            margin-top: 2rem;
-            display: flex;
-            gap: 1rem;
-            align-items: center;
-            justify-content: center;
-          }
-
+          
 
     }
-  
+    .pagination {
+
+      display: flex;
+      gap: 1rem;
+      align-items: center;
+      justify-content: center;
+    }
+
    
-  }}
+  }
   

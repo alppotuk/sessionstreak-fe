@@ -23,8 +23,8 @@ export interface SessionsRequest extends PaginationRequest {
 }
   
   export interface CreateSessionRequest {
-    title: string;
-    description?: string;
+    name: string;
+    bpm: number;
     isPublic: boolean;
   }
   

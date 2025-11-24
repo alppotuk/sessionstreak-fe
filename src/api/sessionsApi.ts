@@ -3,9 +3,9 @@ import type { PaginationResponse, Response } from "./types/common";
 import type { Session, CreateSessionRequest, UpdateSessionRequest, SessionsRequest } from "./types/session";
 
 export const sessionsApi = {
-  async getSessions(body: SessionsRequest):  Promise<PaginationResponse<Session>> 
+  async getSessions(payload: SessionsRequest):  Promise<PaginationResponse<Session>> 
   {
-    const { data } = await axiosInstance.post("/Session/Sessions", body);
+    const { data } = await axiosInstance.post("/session/Sessions", payload);
     return data;
   },
 
@@ -15,7 +15,7 @@ export const sessionsApi = {
   },
 
   async createSession(payload: CreateSessionRequest): Promise<Session> {
-    const { data } = await axiosInstance.post("/sessions", payload);
+    const { data } = await axiosInstance.post("/session/CreateSession", payload);
     return data;
   },
 
