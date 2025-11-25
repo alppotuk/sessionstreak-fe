@@ -19,5 +19,6 @@ export interface PaginationRequest {
     totalCount: number;
     page: number;
     pageSize: number;
+    message?: string;
   }
   

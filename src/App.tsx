@@ -7,9 +7,11 @@ import SharedWithMeSection from "./sections/SharedWithMeSection";
 import SettingsSection from "./sections/SettingsSection";
 import DetailsPage from "./pages/DetailsPage/DetailsPage";
 import AuthPage from "./pages/AuthPage";
+import { Slide, ToastContainer } from "react-toastify";
 
 export default function App() {
   return (
+     <> 
     <Routes>
      
       <Route path="/login" element={<AuthPage />} />
@@ -30,7 +32,17 @@ export default function App() {
 
       </Route>
     </Routes>
-  );
-}
+    <ToastContainer
+    position="bottom-center"
+    closeButton={false}
+    closeOnClick={true}
+    theme="dark"
+    newestOnTop={true}
+    hideProgressBar={true}
+    autoClose={300000}
+    transition={Slide}
+    />
+    </>
+)};
 
 

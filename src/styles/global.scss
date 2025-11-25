@@ -40,13 +40,6 @@ div{
   display: flex;
 }
 
-section{
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  width: 100%;
-}
-
 
 p{
   margin: 0;
@@ -74,6 +67,13 @@ ul {
   width: 100%;
   margin: 0 ;
   padding: 0 ;
+
+  section{
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    width: 100%;
+  }
 }
 
 // Card component example -----------------------------------------------------
@@ -88,3 +88,9 @@ ul {
   }
 }
 
+.Toastify__toast {
+  font-family: "Oxanium", sans-serif;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+}
