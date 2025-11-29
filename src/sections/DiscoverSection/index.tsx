@@ -1,18 +1,19 @@
 import { useEffect, useState } from "react";
 import { sessionsApi } from "../../api/sessionsApi";
 import type { CreateSessionRequest, Session, SessionsRequest } from '../../api/types/session';
-import type { PaginationResponse } from "../../api/types/common";
+import type { PaginationResult, Response } from "../../api/types/common";
 import { Modal } from "../../components/Modal";
-import { SessionListItem } from "../../components/SessionListItem"; // Import the new component
+import { SessionList } from "../../components/SessionList";
 import "./styles.scss";
 
 export default function DiscoverSection() {
   const [items, setItems] = useState<Session[]>([]);
+  // paginationResult can be undefined initially
+  const [paginationResult, setPaginationResult] = useState<PaginationResult>();
   const [searchText, setSearchText] = useState("");
   const [page, setPage] = useState(1);
   const [pageSize] = useState(10); 
-  const [totalCount, setTotalCount] = useState(0);
-
+  
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [createSessionRequest, setCreateSessionRequest] = useState<CreateSessionRequest>({
     name: "",
@@ -23,14 +24,17 @@ export default function DiscoverSection() {
   const loadData = async () => {
     try {
         const request : SessionsRequest = {
-            pageNumber: page, // FIX: Use state, not hardcoded 1
+            pageNumber: page,
             pageSize: pageSize,
-            // searchText: searchText // Add this if your API supports it
+            // searchText: searchText 
         }
         
-      const result: PaginationResponse<Session> = await sessionsApi.getSessions(request);
-      setItems(result.data);
-      setTotalCount(result.totalCount);
+      const result: Response<Session[]> = await sessionsApi.getSessions(request);
+      
+      if (result.success && result.data) {
+        setItems(result.data);
+        setPaginationResult(result.paginationResult);
+      }
     } catch (error) {
         console.error("Failed to load sessions", error);
     }
@@ -41,7 +45,7 @@ export default function DiscoverSection() {
       await sessionsApi.createSession(createSessionRequest);
       setIsModalOpen(false);
       setCreateSessionRequest({ name: "", isPublic: true, bpm: 120 });
-      loadData(); // Reload list after create
+      loadData();
     } catch (error) {
         console.error("Failed to create", error);
     }
@@ -51,8 +55,6 @@ export default function DiscoverSection() {
     loadData();
   }, [page, searchText]);
 
-  const totalPages = Math.ceil(totalCount / pageSize);
-
   return (
     <section className="discover">
       <div className="header">
@@ -61,9 +63,8 @@ export default function DiscoverSection() {
       </div>
 
       <div className="body">
-        <div className="search-container">
+        <div className="search">
             <input
-            className="search-input"
             placeholder="Search sessions..."
             value={searchText}
             onChange={(e) => {
@@ -73,38 +74,15 @@ export default function DiscoverSection() {
             />
         </div>
 
-        <div className="list-grid">
-            {items.length === 0 && (
+        {/* Check for items AND paginationResult to be safe */}
+        {items.length > 0 && paginationResult ? (
+             <SessionList 
+                sessions={items}
+                paginationResult={paginationResult} 
+                onPageChange={setPage} 
+            />
+        ) : (
             <div className="empty-state">No sessions found</div>
-            )}
-
-            {items.map((item) => (
-                // We pass the whole object here
-                <SessionListItem key={item.id} session={item} />
-            ))}
-        </div>
-
-        {/* Hide pagination if empty */}
-        {items.length > 0 && (
-            <div className="pagination">
-                <button
-                disabled={page === 1}
-                onClick={() => setPage((p) => p - 1)}
-                >
-                Prev
-                </button>
-
-                <span className="page-info">
-                {page} / {totalPages || 1}
-                </span>
-
-                <button
-                disabled={page === totalPages || totalPages === 0}
-                onClick={() => setPage((p) => p + 1)}
-                >
-                Next
-                </button>
-            </div>
         )}
       </div>
 

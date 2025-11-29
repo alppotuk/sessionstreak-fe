@@ -1,13 +1,13 @@
 import { Routes, Route } from "react-router-dom";
 import RequireAuth from "./context/RequireAuth"; 
-import MainPage from "./pages/MainPage";
 import DiscoverSection from "./sections/DiscoverSection";
 import YourSessionsSection from "./sections/YourSessionsSection";
 import SharedWithMeSection from "./sections/SharedWithMeSection";
 import SettingsSection from "./sections/SettingsSection";
-import DetailsPage  from "./pages/DetailsPage";
 import AuthPage from "./pages/AuthPage";
 import { Slide, ToastContainer } from "react-toastify";
+import SessionDawPage from "./pages/SessionDawPage";
+import HomePage from "./pages/HomePage";
 
 export default function App() {
   return (
@@ -19,7 +19,7 @@ export default function App() {
       <Route element={<RequireAuth />}>
         
         
-        <Route path="/" element={<MainPage />}>
+        <Route path="/" element={<HomePage />}>
           <Route index element={<DiscoverSection />} />
           <Route path="discover" element={<DiscoverSection />} />
           <Route path="your-sessions" element={<YourSessionsSection />} />
@@ -28,7 +28,7 @@ export default function App() {
         </Route>
 
         
-        <Route path="/session/:sessionToken" element={<DetailsPage />} />
+        <Route path="/session/:sessionToken" element={<SessionDawPage />} />
 
       </Route>
     </Routes>

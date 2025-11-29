@@ -32,6 +32,7 @@ export interface SessionTrack{
   name: string,
   sessionId: number,
   sessionName: string,
+  authorUsername: string,
   order: number,
   audioFileUrl: string,
   waveformFileUrl: string,

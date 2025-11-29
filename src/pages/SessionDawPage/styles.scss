@@ -7,53 +7,70 @@
     height: 100vh;
     overflow: hidden;
 
-
-
   .daw-header {
     display: flex;
     height: 6rem;
     justify-content: space-between;
     align-items: center;
-    border-bottom: 1px solid $color-border; // todo change
+    border-bottom: 1px solid $color-border;
     padding: 0 2rem;
+    background-color: $color-dark;
 
-    .session-info{
+    .session-info {
       font-weight: $font-weight-semi-bold;
-      height: 100%;
+      display: flex;
       gap: 1rem;
       align-items: center;
-      .bpm {
-        color: $color-text-darker;
-        font-weight: $font-weight-normal;
-        justify-content: center;
-        align-items: center;
-      }
+      .bpm { color: $color-text-darker; font-weight: normal; }
     }
+
     .transport-controls {
       display: flex;
       gap: 1rem;
+      align-items: center;
       
       button {
         background: $color-dark;
         border: 2px solid $color-border;
         color: $color-text;
-        padding: 1rem 1rem;
+        padding: 0.8rem;
         border-radius: $radius-md;
         cursor: pointer;
         display: flex;
         align-items: center;
         justify-content: center;
 
-        &:hover { background:  $color-secondary}
+        &:hover { background: $color-secondary; }
         &.active { background: $color-secondary; border-color: $color-primary; }
       }
-      .time{
-        justify-content: center;
-        align-items: center;
-      }
+      .time { width: 60px; text-align: center; font-variant-numeric: tabular-nums; }
     }
 
-   
+    .action-buttons {
+        display: flex;
+        gap: 1rem;
+
+        button {
+            display: flex;
+            gap: 0.5rem;
+            padding: 0.5rem 1rem;
+            border-radius: $radius-sm;
+            border: 1px solid $color-border;
+            background: transparent;
+            color: $color-text;
+            cursor: pointer;
+            align-items: center;
+            font-size: 12px;
+
+            &:disabled { opacity: 0.5; cursor: not-allowed; }
+            
+            &.save-btn.unsaved {
+                background-color: $color-primary;
+                border-color: $color-primary;
+                color: white;
+            }
+        }
+    }
   }
 
   .daw-workspace {
@@ -61,46 +78,50 @@
     display: flex;
     overflow: hidden;
 
-    .timeline-ruler {
-      position: relative;
-      width: 100%;
-      height: 3rem;
-      background: #2a2a2a;
-      position: sticky;
-      top: 0;
-      z-index: 10;
-      border-bottom: 1px solid var(--color-border);
-      display: flex;
-      align-items: flex-end;
-      color: #888;
-      font-size: 10px;
-      flex-shrink: 0; /* Prevent ruler from shrinking */
-    }
-
     .track-headers {
       min-width: 25rem;
       background-color: $color-dark-lighter;
       border-right: 1px solid $color-border;
       flex-shrink: 0;
-      overflow-y: auto;
-    flex-direction: column;
+      overflow-y: hidden; /* Scroll controlled by JS or parent if needed, usually syncs with timeline */
+      display: flex;
+      flex-direction: column;
+      z-index: 20;
 
-      
+      .timeline-ruler-placeholder { height: 3rem; border-bottom: 1px solid $color-border; flex-shrink: 0; background: $color-dark;}
+
       .track-control-panel {
         height: 9rem;
-      padding: 1rem 2rem;
-
+        padding: 1rem 2rem;
         border-bottom: 1px solid $color-border;
         display: flex;
         flex-direction: column;
         justify-content: space-between;
 
-        .track-name { font-weight: bold; font-size: var(--font-size-sm); margin-bottom: var(--space-1); }
+        .track-name-row {
+            height: 24px;
+            display: flex;
+            align-items: center;
+            
+            input { 
+                background: #111; 
+                border: 1px solid $color-secondary; 
+                color: white; 
+                padding: 2px 5px; 
+                width: 100%;
+                font-size: 12px;
+            }
+            .name-label { 
+                font-weight: bold; 
+                font-size: var(--font-size-sm); 
+                cursor: text; 
+                &:hover { text-decoration: underline; color: $color-secondary; }
+            }
+        }
 
         .track-actions {
           display: flex;
-          gap: var(--space-1);
-          
+          gap: 6px;
           button {
             font-size: 10px;
             padding: 2px 6px;
@@ -112,88 +133,74 @@
             
             &.solo.active { background: #ffaa00; color: black; border-color: #ffaa00; }
             &.mute.active { background: var(--color-danger); color: white; border-color: var(--color-danger); }
+            &.delete:hover { color: var(--color-danger); border-color: var(--color-danger); }
           }
         }
 
         .track-sliders {
             display: flex;
-            gap: var(--space-2);
+            gap: 1rem;
             align-items: center;
-            font-size: 10px;
-            
             input[type="range"] { flex: 1; accent-color: var(--color-secondary); cursor: pointer;}
         }
       }
 
-      /* --- NEW: Add Track Button Area --- */
       .add-track-container {
-        padding: var(--space-2);
+        padding: 1rem;
         border-bottom: 1px solid var(--color-border);
-        height: 60px; /* Fixed height to match empty-lane */
+        height: 60px;
         display: flex;
         align-items: center;
-
         .btn-add-track {
-          width: 100%;
-          height: 100%;
+          width: 100%; height: 100%;
           background: transparent;
           border: 1px dashed var(--color-border);
-          color: var(--color-text-muted, #888);
+          color: #888;
           border-radius: var(--radius-sm);
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          gap: var(--space-2);
-          cursor: pointer;
-          transition: all 0.2s;
-          font-size: var(--font-size-sm);
-
-          &:hover {
-            border-color: var(--color-secondary);
-            color: var(--color-text);
-            background-color: rgba(255,255,255,0.05);
-          }
+          display: flex; align-items: center; justify-content: center;
+          gap: 0.5rem; cursor: pointer;
+          &:hover { border-color: var(--color-secondary); color: white; background: rgba(255,255,255,0.05); }
         }
       }
     }
 
     .timeline-area {
       flex: 1;
-      overflow-x: auto;
-      overflow-y: auto;
+      overflow: auto; /* Handles both X and Y scrolling */
       background-color: #1a1a1a;
+      position: relative; /* Context for children */
       display: flex;       
       flex-direction: column;
 
+      /* Ruler */
       .timeline-ruler {
-        position: relative;
-        width: 100%;
         height: 3rem;
         background: #2a2a2a;
-        position: sticky;
+        position: sticky; /* Sticky keeps it at top during Y scroll */
         top: 0;
-        z-index: 10;
+        z-index: 30; /* Above tracks */
         border-bottom: 1px solid var(--color-border);
         display: flex;
         align-items: flex-end;
         color: #888;
         font-size: 10px;
-        flex-shrink: 0; /* Prevent ruler from shrinking */
+        min-width: max-content; /* Ensure it expands horizontally */
       }
 
+      /* Playhead Fix */
       .playhead {
         position: absolute;
         top: 0;
-        bottom: 0;
+        bottom: 0; /* Spans entire scrollable height */
         width: 1px;
         background-color: $color-secondary;
-        z-index: 20;
+        z-index: 50; /* Highest priority */
         pointer-events: none;
         
         &::after {
           content: '';
           position: absolute;
-          top: 0;
+          top: 0; /* Sticks to top of playhead line */
           left: -5px;
           border-left: 5px solid transparent;
           border-right: 5px solid transparent;
@@ -202,13 +209,12 @@
       }
 
       .track-lane {
-        height: 9rem; /* Must match track-control-panel height */
+        height: 9rem;
         border-bottom: 1px solid var(--color-border);
         position: relative;
         background: repeating-linear-gradient(90deg, transparent, transparent 99px, #333 100px);
-        flex-shrink: 0; /* Prevent lanes from squishing */
-
-        /* --- NEW: Visual for empty space below tracks --- */
+        flex-shrink: 0;
+        min-width: max-content; /* Ensure lane expands horizontally */
 
         .audio-clip {
           position: absolute;
@@ -219,36 +225,39 @@
           border-radius: var(--radius-sm);
           overflow: hidden;
           cursor: grab;
+          z-index: 10;
           
           &:active { cursor: grabbing; border-color: var(--color-secondary); }
 
-          .clip-waveform {
-            width: 100%;
+          .clip-content {
+            position: relative;
+            z-index: 5;
             height: 100%;
-            opacity: 0.6;
-            background-size: cover;
-            background-repeat: no-repeat;
-            pointer-events: none;
+            padding: 4px;
+            
+            .clip-name { font-size: 10px; text-shadow: 0 0 2px black; color: white; pointer-events: none;}
+            .clip-author { 
+                position: absolute; 
+                top: 4px; 
+                right: 4px; 
+                font-size: 9px; 
+                color: rgba(255,255,255,0.6); // Dark-lighter look
+                background: rgba(0,0,0,0.3);
+                padding: 1px 4px;
+                border-radius: 4px;
+            }
           }
 
           .resize-handle {
-            position: absolute;
-            top: 0;
-            bottom: 0;
-            width: 10px;
-            background: rgba(0,0,0,0.3);
-            cursor: col-resize;
-            z-index: 2;
-            
+            position: absolute; top: 0; bottom: 0; width: 10px;
+            background: rgba(0,0,0,0.1); cursor: col-resize; z-index: 20;
             &.left { left: 0; }
             &.right { right: 0; }
             &:hover { background: var(--color-secondary); }
           }
         }
       }
-      .empty-lane{
-        height: 100%;
-      }
+      .empty-lane{ height: 100%; flex: 1; }
     }
   }
 }
