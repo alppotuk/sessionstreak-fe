@@ -271,7 +271,7 @@ export default function SessionDawPage() {
     if (!file || !session) return;
     
     const newTrack: SessionTrack = {
-        id: Date.now(),
+        id: 0,
         name: file.name.replace(/\.[^/.]+$/, ""),
         sessionId: session.id,
         sessionName: session.name,
@@ -287,7 +287,7 @@ export default function SessionDawPage() {
         isSolo: false,
         isMono: false,
         pan: 0,
-        createdAtUtc: new Date().toISOString(),
+        createdAtUtc: new Date().toUTCString(),
         authorUsername: account?.username ?? 'currentUser'
     };
     
@@ -435,6 +435,7 @@ export default function SessionDawPage() {
                     <div className="resize-handle left" onMouseDown={(e) => handleClipMouseDown(e, track.id, 'trim-left')} />
                     <div className="clip-content">
                         <div className="clip-name">{track.name}</div>
+                        <div className='clip-author'>{track.authorUsername} </div>
                     </div>
                     <div className="resize-handle right" onMouseDown={(e) => handleClipMouseDown(e, track.id, 'trim-right')} />
                 </div>

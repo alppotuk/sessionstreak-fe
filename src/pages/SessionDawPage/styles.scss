@@ -228,19 +228,15 @@
         cursor: col-resize;
         z-index: 60; 
     
-        /* FIX 1: Removed global border-left here to prevent double lines on the end handle */
     
-        /* Triangle Shape Base */
         &::after {
             content: '';
             position: absolute;
             top: 0;
             border: 6px solid transparent;
-            /* Default Active Color */
             border-top-color: $color-secondary; 
         }
     
-        /* --- Start Handle (Left Border + Left Triangle) --- */
         &.start {
             transform: translateX(-50%);
             border-left: 1px dashed rgba($color-secondary, 0.5);
@@ -249,7 +245,6 @@
                 border-left-color: $color-secondary;
             }
     
-            /* Inactive State for Start */
             &.inactive {
                 border-left-color: #555; /* Grey line */
                 &::after {
@@ -259,10 +254,8 @@
             }
         }
     
-        /* --- End Handle (Right Border + Right Triangle) --- */
         &.end {
             transform: translateX(-50%);
-            /* FIX 2: Only apply Right border */
             border-right: 1px dashed rgba($color-secondary, 0.5); 
     
             &::after {
@@ -270,7 +263,6 @@
                 border-right-color: $color-secondary;
             }
     
-            /* Inactive State for End */
             &.inactive {
                 border-right-color: #555; /* Grey line */
                 &::after {
@@ -286,7 +278,6 @@
     }
       }
 
-      /* Playhead Fix */
       .playhead {
         position: absolute;
         top: 0;
@@ -329,6 +320,7 @@
           &:active { cursor: grabbing; border-color: var(--color-secondary); }
 
           .clip-content {
+            display: flex;
             position: relative;
             z-index: 5;
             height: 100%;

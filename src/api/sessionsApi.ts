@@ -1,9 +1,9 @@
 import axiosInstance from "./axiosInstance";
-import type { PaginationResponse, Response } from "./types/common";
+import type { Entity, Response } from "./types/common";
 import type { Session, CreateSessionRequest, UpdateSessionRequest, SessionsRequest } from "./types/session";
 
 export const sessionsApi = {
-  async getSessions(payload: SessionsRequest):  Promise<PaginationResponse<Session>> 
+  async getSessions(payload: SessionsRequest):  Promise<Response<Session[]>> 
   {
     const { data } = await axiosInstance.post("/Session/Sessions", payload);
     return data;
@@ -14,17 +14,18 @@ export const sessionsApi = {
     return data;
   },
 
-  async createSession(payload: CreateSessionRequest): Promise<Session> {
+  async createSession(payload: CreateSessionRequest): Promise<Response<boolean>> {
     const { data } = await axiosInstance.post("/Session/CreateSession", payload);
     return data;
   },
 
-  async updateSession(payload: UpdateSessionRequest): Promise<Session> {
-    const { data } = await axiosInstance.put(`/Session/${payload.id}`, payload);
+  async updateSession(payload: UpdateSessionRequest): Promise<Response<boolean>> {
+    const { data } = await axiosInstance.post(`/Session/${payload.id}`, payload);
     return data;
   },
 
-  async deleteSession(id: string): Promise<void> {
-    await axiosInstance.delete(`/Session/${id}`);
+  async deleteSession(payload: Entity): Promise<Response<boolean>> {
+    const { data } =  await axiosInstance.post('/Session/DeleteSession', payload);
+    return data;
   }
 };

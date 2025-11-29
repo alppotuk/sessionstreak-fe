@@ -62,9 +62,44 @@ export interface SessionsRequest extends PaginationRequest {
   }
   
   export interface UpdateSessionRequest {
-    id: string;
-    title?: string;
-    description?: string;
-    isPublic?: boolean;
+    id: number;
+    name: string;
+    bpm: number;
+    isPublic: boolean;
+    isLoopActive: boolean;
+    loopStartInSeconds: number;
+    loopEndInSeconds: number;
+    tracks: UpdateSessionTrackRequest[];
   }
   
+  export interface UpdateSessionTrackRequest {
+    id: number;
+    name: string;
+    audioFile?: File | null;
+    durationInSeconds: number;
+    startTimeInSeconds: number;
+    startTrimInSeconds: number;
+    endTrimInSeconds: number;
+    volumeDb: number;
+    isMuted: boolean;
+    isSolo: boolean;
+    isMono: boolean;
+    pan: number;
+    order: number;
+  }
+
+  export interface CreateSessionTrackRequest {
+    name: string;
+    sessionId: number;
+    audioFile: File;
+    durationInSeconds: number;
+    startTimeInSeconds: number;
+    startTrimInSeconds: number;
+    endTrimInSeconds: number;
+    volumeDb: number;
+    isMuted: boolean;
+    isSolo: boolean;
+    isMono: boolean;
+    pan: number;
+    order: number;
+  }
