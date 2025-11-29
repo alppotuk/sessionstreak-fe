@@ -1,6 +1,6 @@
 import axiosInstance from "./axiosInstance";
 import type { Entity, Response } from "./types/common";
-import type { Session, CreateSessionRequest, UpdateSessionRequest, SessionsRequest } from "./types/session";
+import type { Session, CreateSessionRequest, UpdateSessionRequest, SessionsRequest, CreateSessionTrackRequest, SessionTrack } from "./types/session";
 
 export const sessionsApi = {
   async getSessions(payload: SessionsRequest):  Promise<Response<Session[]>> 
@@ -20,12 +20,19 @@ export const sessionsApi = {
   },
 
   async updateSession(payload: UpdateSessionRequest): Promise<Response<boolean>> {
-    const { data } = await axiosInstance.post(`/Session/${payload.id}`, payload);
+    const { data } = await axiosInstance.post('/Session/UpdateSession', payload);
     return data;
   },
 
   async deleteSession(payload: Entity): Promise<Response<boolean>> {
     const { data } =  await axiosInstance.post('/Session/DeleteSession', payload);
+    return data;
+  },
+
+  async createSessionTrack(payload: CreateSessionTrackRequest): Promise<Response<SessionTrack>> {
+    const { data } = await axiosInstance.post("/Session/CreateSessionTrack", payload, {
+      headers: { "Content-Type": "multipart/form-data" },
+    });
     return data;
   }
 };

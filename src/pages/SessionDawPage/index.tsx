@@ -7,7 +7,7 @@ import {
 import './styles.scss'; 
 
 import { sessionsApi } from '../../api/sessionsApi'; 
-import type { Session, SessionTrack } from '../../api/types/session';
+import type { Session, SessionTrack, UpdateSessionRequest } from '../../api/types/session';
 import { useAuth } from '../../context/AuthContext';
 
 const PX_PER_SECOND = 50;
@@ -242,8 +242,22 @@ export default function SessionDawPage() {
     setDragState(null);
   };
 
-  const handleSave = () => {
-    console.log("Saving...", {session, loopStart, loopEnd});
+  const handleSave = async () => {
+    if (!session) return;
+    try {
+      const payload : UpdateSessionRequest = {
+        ...session,
+        isLoopActive: isLooping,
+        loopStartInSeconds: loopStart,
+        loopEndInSeconds: loopEnd
+      };
+
+      await sessionsApi.updateSession(payload);
+      setHasUnsavedChanges(false);
+    } catch (error) {
+      console.error("Failed to save session", error);
+      alert("Failed to save changes.");
+    }
     setHasUnsavedChanges(false);
   }
   
@@ -264,38 +278,40 @@ export default function SessionDawPage() {
       const t = session?.tracks.find(x => x.id === id);
       if(t) channelRef.current.get(id)?.set({solo: !t.isSolo});
   }
-  const markChanged = () => setHasUnsavedChanges(true);
-  
+
   const handleAddTrack = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !session) return;
-    
-    const newTrack: SessionTrack = {
-        id: 0,
-        name: file.name.replace(/\.[^/.]+$/, ""),
-        sessionId: session.id,
-        sessionName: session.name,
-        order: session.tracks.length + 1,
-        audioFileUrl: URL.createObjectURL(file),
-        waveformFileUrl: '',
-        durationInSeconds: 15,
-        startTimeInSeconds: 0,
-        startTrimInSeconds: 0,
-        endTrimInSeconds: 0,
-        volumeDb: 0,
-        isMuted: false,
-        isSolo: false,
-        isMono: false,
-        pan: 0,
-        createdAtUtc: new Date().toUTCString(),
-        authorUsername: account?.username ?? 'currentUser'
-    };
-    
-    setSession(prev => prev ? { ...prev, tracks: [...prev.tracks, newTrack] } : null);
-    setupTrackAudio(newTrack);
-    markChanged();
-    if (fileInputRef.current) fileInputRef.current.value = '';
+
+    try {
+      const formData = new FormData();
+      const arrayBuffer = await file.arrayBuffer();
+      const audioBuffer = await Tone.context.decodeAudioData(arrayBuffer);
+      const duration = audioBuffer.duration;
+
+      formData.append('sessionId', session.id.toString());
+      formData.append('audioFile', file);
+      formData.append('name', file.name.replace(/\.[^/.]+$/, ""));
+      formData.append('durationInSeconds', duration.toString()); 
+      formData.append('startTimeInSeconds', '0');
+      formData.append('order', (session.tracks.length + 1).toString());
+
+      const response = await sessionsApi.createSessionTrack(formData as any);
+      
+      if (response.data) {
+        const newTrack = response.data;
+        setSession(prev => prev ? { ...prev, tracks: [...prev.tracks, newTrack] } : null);
+        setupTrackAudio(newTrack);
+        setHasUnsavedChanges(true); 
+      }
+    } catch (error) {
+      console.error("Failed to upload track", error);
+      alert("Error uploading track.");
+    } finally {
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
   };
+  
 
 
   if (loading || !session || !account) return <div className="daw-container">Loading...</div>;
