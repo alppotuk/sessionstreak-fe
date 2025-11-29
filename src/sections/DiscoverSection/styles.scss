@@ -4,7 +4,7 @@
 section.discover {
     display: flex;
     gap: 2rem;
-
+  overflow: scroll;
     
 
     .header {
@@ -54,7 +54,6 @@ section.discover {
             gap: 2rem;
 
             .list-item {
-              width: 100%;
               padding: 1rem;
               border: 1px solid $color-primary;
               border-radius: 0.5rem;

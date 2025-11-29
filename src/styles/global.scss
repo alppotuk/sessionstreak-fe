@@ -1,5 +1,5 @@
-@use './variables' as *;
-@use './mixins' as *;
+@use '../styles/variables' as *;
+@use '../styles/mixins' as *;
 
 // Root setup ---------------------------------------------------------------
 html {
@@ -82,9 +82,7 @@ ul {
   padding: $space-4;
   box-shadow: $shadow-sm;
 
-  @include respond(sm) {
-    padding: $space-3;
-  }
+ 
 }
 
 .Toastify__toast {

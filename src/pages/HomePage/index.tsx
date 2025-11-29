@@ -1,76 +1,78 @@
-import { Link, NavLink, Outlet } from 'react-router-dom';
-import './styles.scss';
+import { useEffect } from 'react';
+import { NavLink, Outlet, useNavigate, useLocation } from 'react-router-dom';
+import { Compass, LayoutGrid, Users, Settings, LogOut } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
-import discovery_logo from '../../assets/discover_logo.png';
-import your_sessions_logo from '../../assets/your_sessions_logo.png';
-import shared_logo from '../../assets/shared_logo.png';
-import settings_logo from '../../assets/settings_logo.png';
-import logout_logo from '../../assets/logout_logo.png';
-
+import './styles.scss';
 
 export default function HomePage() {
-  const { account } = useAuth();
-  
+  const { account, logout } = useAuth();
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  useEffect(() => {
+    if (location.pathname === '/') {
+      navigate('/discover', { replace: true });
+    }
+  }, [location, navigate]);
+
   return (
-  <>
     <div className='flex-container'>
+      <div className='app-header'>Session Streak</div>
       <div className='side-bar'>
         <div className='header'>
-        Session Streak
-
+          Session Streak
+        </div>
         
-        </div>
         <div className='profile'>
-    {account?.profileImageUrl ? (
-        <img
-            className="profile-image"
-            src={account.profileImageUrl}
-            alt={account?.username ? `${account.username}'s profile` : "Profile"}
-        />
-    ) : (
-        <div className="profile-picture-placeholder">
-            {account?.username?.charAt(0).toUpperCase()}
+          {account?.profileImageUrl ? (
+            <img
+              className="profile-image"
+              src={account.profileImageUrl}
+              alt={account?.username || "Profile"}
+            />
+          ) : (
+            <div className="profile-picture-placeholder">
+              {account?.username?.charAt(0).toUpperCase()}
+            </div>
+          )}
+          <div className="profile-username">
+            {account?.username ?? 'No Username'}
+          </div>
         </div>
-    )}
-    <div className="profile-username">{account?.username ?? 'you dont have a username?'}</div>
-</div>
-        <div className='menu'>
 
+        <nav className='menu'>
           <div className='menu-title'>Explore Sessions</div>
-         
-         
+          
           <NavLink className="menu-item" to="/discover">
-            {/* <img src={discovery_logo} alt="" className="menu-icon" /> */}
-            Discover
+            <Compass className="menu-icon" />
+            <span className="menu-text">Discover</span>
           </NavLink>
 
           <NavLink className="menu-item" to="/your-sessions">
-            {/* <img src={your_sessions_logo} alt="" className="menu-icon" /> */}
-            My Sessions
+            <LayoutGrid className="menu-icon" />
+            <span className="menu-text">My Sessions</span>
           </NavLink>
 
           <NavLink className="menu-item" to="/shared">
-            {/* <img src={shared_logo} alt="" className="menu-icon" /> */}
-            Shared with me
+            <Users className="menu-icon" />
+            <span className="menu-text">Shared</span>
           </NavLink>
 
           <NavLink className="menu-item" to="/settings">
-            {/* <img src={settings_logo} alt="" className="menu-icon" /> */}
-            Settings
+            <Settings className="menu-icon" />
+            <span className="menu-text">Settings</span>
           </NavLink>
-        </div>
-            <Link className="logout" to="/your-sessions">
-            {/* <img src={logout_logo} alt="" className="icon" /> */}
-            Logout
-            </Link>
+        </nav>
 
+        <div className="logout" onClick={logout}> 
+          <LogOut className="icon" />
+          <span>Logout</span>
+        </div>
       </div>
-      <div className='content'>
+
+      <main className='content'>
         <Outlet />
-      </div>
+      </main>
     </div>
-  
-    
-  </>
   );
 }

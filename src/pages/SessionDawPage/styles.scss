@@ -1,3 +1,4 @@
+@use '../../styles/mixins' as *;
 @use '../../styles/variables' as *;
 
 .daw-container {
@@ -151,8 +152,9 @@
             background: transparent;
             color: #888;
             
+            &.arm.active { background: $color-primary; color: black; border-color: #ffaa00; }
             &.solo.active { background: #ffaa00; color: black; border-color: #ffaa00; }
-            &.mute.active { background: var(--color-danger); color: white; border-color: var(--color-danger); }
+            &.mute.active { background: $color-secondary; color: white; border-color: var(--color-danger); }
             &.delete:hover { color: var(--color-danger); border-color: var(--color-danger); }
           }
         }

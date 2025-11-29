@@ -1,17 +1,52 @@
+@use '../../styles/mixins' as *;
 @use '../../styles/variables' as *;
 
 .flex-container{
     flex-direction: row;
     height: 100%;
+
+    @include mobile {
+      flex-direction: column;
+    }
+
+    .app-header{
+
+        display: none;
+        @include mobile {
+          display: flex;
+          min-height: 4rem;
+          background-color: $color-primary;
+          justify-content: center;
+          align-items: center;
+          font-size: $font-size-lg;
+          font-weight: $font-weight-bold;
+        }
+    }
     
     .side-bar{
         display: flex;
         flex-direction: column;
         height: 100%;
-        min-width: 40rem;
+        width: 40rem;
+        min-width: 30rem;
         padding: 8rem 4rem;
 
         background-color: $color-primary;
+
+        @include mobile {
+          position: fixed;
+          bottom: 0;
+          left: 0;
+          width: 100%;
+          height: auto;
+          min-width: auto;
+          padding: 0.5rem;
+          flex-direction: row;
+          justify-content: space-around;
+          border-right: none;
+          border-top: 1px solid rgba($color-dark, 0.1);
+          background-color: $color-primary; 
+        }
 
 
         .header{
@@ -20,6 +55,10 @@
             font-size: $font-size-xl;
             font-weight: $font-weight-bold;
             font-family: "Orbitron", sans-serif;
+
+            @include mobile {
+              display: none;
+            }
         }
         
         .profile{
@@ -27,6 +66,10 @@
             flex: 2;
             align-items: center;
             gap: 2rem;
+
+            @include mobile {
+              display: none;
+            }
               
               .profile-image {
                 width: 4rem;
@@ -58,11 +101,25 @@
             flex-direction: column;
             gap: 2rem;
             flex: 5;
+
+            @include mobile {
+              flex-direction: row;
+              width: 100%;
+              justify-content: space-around;
+              align-items: center;
+              padding: 0;
+              gap: 0;
+            }
+
             .menu-title
             {
                 font-size: $font-size-lg;
                 font-weight: $font-weight-semi-bold;
                 margin-bottom: 1rem;
+
+                @include mobile {
+                  display: none;
+                }
             }
 
             .menu-item {
@@ -72,18 +129,50 @@
                 text-decoration: none;
                 border-left: 2px solid transparent;
                 padding: 0.2rem 2rem;
+
+                @include mobile {
+                  flex-direction: column;
+                  gap: 0.2rem;
+                  padding: 0.5rem;
+                  border-left: none;
+                  border-top: 3px solid transparent;
+                  font-size: 0.8rem;
+                }
+
+                .menu-icon {
+                  width: 1.8rem;
+                  height: 1.8rem;
+                  object-fit: contain;
+                }
+
+               
+                .menu-text {
+                  @include mobile {
+                      display: none; 
+                  }
               }
               
-              .menu-item .menu-icon {
-                width: 1.8rem;
-                height: 1.8rem;
-                object-fit: contain;
+              &.active {
+                border-left-color: $color-dark;
+                background-color: rgba($color-dark, 0.05);
+                font-weight: 600;
+      
+                @include mobile {
+                  border-left-color: transparent;
+                  border-top-color: $color-dark;
+                  background-color: transparent;
+                  color: $color-dark; 
+                }
               }
 
-              .menu-item.active {
-                border-left-color: $color-dark;
-                font-weight: 600;
+              &:hover {
+                background-color: rgba($color-dark, 0.03);
+                @include mobile {
+                  background-color: transparent;
+                }
               }
+              
+            }
         }
 
         .logout{
@@ -91,6 +180,10 @@
             flex-direction: row;
             gap: 1rem;
             color: $color-text;
+
+            @include mobile {
+              display: none;
+            }
 
             .icon {
               width: 1.8rem;
@@ -109,6 +202,10 @@
         height: 100%;
 
         padding: 8rem 4rem;
+
+        @include mobile {
+          padding: 2rem 2rem;
+        }
     }
     
 }
