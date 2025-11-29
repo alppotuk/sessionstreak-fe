@@ -214,6 +214,11 @@
           background-color: rgba(var(--color-secondary-rgb), 0.15); // Requires RGB var or hardcode like rgba(0, 255, 200, 0.15)
           border-top: 2px solid $color-secondary;
           pointer-events: none;
+          &.inactive {
+            background-color: rgba(100, 100, 100, 0.1); /* Darker/Grey */
+            border-top-color: #555;
+        }
+
       }
       .loop-handle {
         position: absolute;
@@ -221,34 +226,60 @@
         bottom: 0;
         width: 10px;
         cursor: col-resize;
-        z-index: 60; // Higher than playhead
-        
+        z-index: 60; 
+    
+        /* FIX 1: Removed global border-left here to prevent double lines on the end handle */
+    
+        /* Triangle Shape Base */
         &::after {
             content: '';
             position: absolute;
             top: 0;
             border: 6px solid transparent;
+            /* Default Active Color */
+            border-top-color: $color-secondary; 
         }
-
+    
+        /* --- Start Handle (Left Border + Left Triangle) --- */
         &.start {
-            transform: translateX(-50%); // Center on time
-            &::after {
-                border-top-color: $color-secondary;
-                border-left-color: $color-secondary; // Left pointing triangle
-            }
+            transform: translateX(-50%);
             border-left: 1px dashed rgba($color-secondary, 0.5);
+    
+            &::after {
+                border-left-color: $color-secondary;
+            }
+    
+            /* Inactive State for Start */
+            &.inactive {
+                border-left-color: #555; /* Grey line */
+                &::after {
+                    border-top-color: #555;
+                    border-left-color: #555; /* Grey triangle */
+                }
+            }
         }
-
+    
+        /* --- End Handle (Right Border + Right Triangle) --- */
         &.end {
             transform: translateX(-50%);
+            /* FIX 2: Only apply Right border */
+            border-right: 1px dashed rgba($color-secondary, 0.5); 
+    
             &::after {
-                border-top-color: $color-secondary;
-                border-right-color: $color-secondary; // Right pointing triangle
-                right: 0;
+                right: 0; /* Align triangle to right */
+                border-right-color: $color-secondary;
             }
-            border-right: 1px dashed rgba($color-secondary, 0.5);
+    
+            /* Inactive State for End */
+            &.inactive {
+                border-right-color: #555; /* Grey line */
+                &::after {
+                    border-top-color: #555;
+                    border-right-color: #555; /* Grey triangle */
+                }
+            }
         }
-
+    
         &:hover::after {
             transform: scale(1.2);
         }

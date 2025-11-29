@@ -1,9 +1,8 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { useParams, useNavigate } from 'react-router-dom'; // Added useNavigate
+import { useParams, useNavigate } from 'react-router-dom';
 import * as Tone from 'tone';
 import { 
-  Play, Pause, Square, Repeat, Volume2, Plus, Trash2, Save, Share2, 
-  ArrowLeft // Added ArrowLeft
+  Play, Pause, Square, Repeat, Volume2, Plus, Trash2, Save, Share2, ArrowLeft 
 } from 'lucide-react';
 import './styles.scss'; 
 
@@ -16,7 +15,7 @@ const PX_PER_SECOND = 50;
 export default function SessionDawPage() {
   const { account } = useAuth();
   const { sessionToken } = useParams<{ sessionToken: string }>();
-  const navigate = useNavigate(); // Hook for navigation
+  const navigate = useNavigate();
 
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
@@ -25,22 +24,19 @@ export default function SessionDawPage() {
   const [editingTrackId, setEditingTrackId] = useState<number | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const timelineRef = useRef<HTMLDivElement>(null); // Ref for timeline scrolling calculations
+  const timelineRef = useRef<HTMLDivElement>(null);
    
-  // Audio State
   const [isPlaying, setIsPlaying] = useState(false);
   const [transportTime, setTransportTime] = useState(0);
   
-  // Loop State
   const [isLooping, setIsLooping] = useState(false);
   const [loopStart, setLoopStart] = useState(0);
-  const [loopEnd, setLoopEnd] = useState(10); // Default 10s loop
+  const [loopEnd, setLoopEnd] = useState(10); 
 
   const playersRef = useRef<Map<number, Tone.Player>>(new Map());
   const channelRef = useRef<Map<number, Tone.Channel>>(new Map());
   const animationFrameRef = useRef<number | null>(null);
 
-  // --- 1. Initialization ---
   useEffect(() => {
     const loadSession = async () => {
       if (!sessionToken || !account) return;
@@ -49,7 +45,6 @@ export default function SessionDawPage() {
         const data = response.data;
         setSession(data); 
         
-        // Init Loop from session
         setIsLooping(data.isLoopActive);
         setLoopStart(data.loopStartInSeconds || 0);
         setLoopEnd(data.lookEndInSeconds || 10);
@@ -59,6 +54,8 @@ export default function SessionDawPage() {
         Tone.Transport.loopStart = data.loopStartInSeconds || 0;
         Tone.Transport.loopEnd = data.lookEndInSeconds || 10;
 
+        // Initialize audio
+        await Tone.loaded();
         data.tracks.forEach(track => setupTrackAudio(track));
       } catch (err) {
         console.error("Failed to load session", err);
@@ -71,20 +68,19 @@ export default function SessionDawPage() {
       playersRef.current.forEach(p => p.dispose());
       channelRef.current.forEach(c => c.dispose());
       if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current);
+      Tone.Transport.stop();
     };
   }, [sessionToken, account]);
 
-  // --- 2. Tone.js Loop Sync ---
-  // Whenever React loop state changes, tell Tone.js
   useEffect(() => {
     Tone.Transport.loop = isLooping;
     Tone.Transport.loopStart = loopStart;
     Tone.Transport.loopEnd = loopEnd;
   }, [isLooping, loopStart, loopEnd]);
 
-
-  // --- 3. Audio Engine ---
+  // Updated Audio Engine using .sync() for loop support
   const setupTrackAudio = (track: SessionTrack) => {
+    // Dispose old instances
     if(playersRef.current.has(track.id)) playersRef.current.get(track.id)?.dispose();
     if(channelRef.current.has(track.id)) channelRef.current.get(track.id)?.dispose();
 
@@ -97,7 +93,13 @@ export default function SessionDawPage() {
     
     const player = new Tone.Player({
       url: track.audioFileUrl,
-      onload: () => console.log(`${track.name} loaded`),
+      onload: () => {
+        // Essential for looping: Sync player to transport timeline
+        player.sync();
+        const duration = track.durationInSeconds - track.startTrimInSeconds - track.endTrimInSeconds;
+        // start(startTimeInTransport, offsetInFile, durationOfClip)
+        player.start(track.startTimeInSeconds, track.startTrimInSeconds, duration);
+      },
     }).connect(channel);
 
     playersRef.current.set(track.id, player);
@@ -113,41 +115,18 @@ export default function SessionDawPage() {
     else if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current);
   }, [isPlaying]);
 
-  // --- 4. Transport & Navigation ---
   const handleGoBack = () => {
-    if (hasUnsavedChanges) {
-        if (!window.confirm("You have unsaved changes. Leave anyway?")) return;
-    }
+    if (hasUnsavedChanges && !window.confirm("You have unsaved changes. Leave anyway?")) return;
     navigate(-1);
   };
 
+  // Simplified Play logic relying on Tone.Transport
   const togglePlay = async () => {
     if (Tone.context.state !== 'running') await Tone.start();
 
     if (isPlaying) {
       Tone.Transport.pause();
-      playersRef.current.forEach(p => p.stop());
     } else {
-      // Sync players to current Transport time
-      playersRef.current.forEach((player, trackId) => {
-        const track = session?.tracks.find(t => t.id === trackId);
-        if (track && player.loaded) {
-            const clipStart = track.startTimeInSeconds;
-            const clipDuration = track.durationInSeconds - track.startTrimInSeconds - track.endTrimInSeconds;
-            const current = Tone.Transport.seconds;
-            
-            // Logic: Is the playhead currently intersecting this clip?
-            if (current >= clipStart && current < clipStart + clipDuration) {
-                 const offset = (current - clipStart) + track.startTrimInSeconds;
-                 player.start(Tone.now(), offset, clipDuration - (offset - track.startTrimInSeconds));
-            } 
-            // Logic: Is the clip in the future?
-            else if (current < clipStart) {
-                const startWhen = clipStart - current;
-                player.start(`+${startWhen}`, track.startTrimInSeconds, clipDuration);
-            }
-        }
-      });
       Tone.Transport.start();
     }
     setIsPlaying(!isPlaying);
@@ -155,48 +134,33 @@ export default function SessionDawPage() {
 
   const stop = () => {
     Tone.Transport.stop();
-    playersRef.current.forEach(p => p.stop());
     setIsPlaying(false);
     setTransportTime(0);
   };
 
-  // --- 5. Timeline Interactions (Seek & Drag) ---
-  
-  // Drag State Definition
   const [dragState, setDragState] = useState<{
     type: 'move-clip' | 'trim-left' | 'trim-right' | 'loop-start' | 'loop-end',
     trackId?: number, 
     startX: number, 
-    initialVal: number, // Generic initial value (could be time or trim)
-    initialStartTrim?: number, // Specifically for left trim calculations
-    initialStartTime?: number  // Specifically for left trim calculations
+    initialVal: number,
+    initialStartTrim?: number, 
+    initialStartTime?: number
   } | null>(null);
 
-  // 5a. Seeking (Click on Ruler)
   const handleRulerMouseDown = (e: React.MouseEvent) => {
-    // Only seek if clicking the background, not the loop handles
     if ((e.target as HTMLElement).classList.contains('loop-handle')) return;
     
     const rect = timelineRef.current?.getBoundingClientRect();
     if (!rect) return;
 
-    // Calculate time based on click position relative to scroll container + scroll offset
     const scrollLeft = timelineRef.current?.scrollLeft || 0;
     const clickX = e.clientX - rect.left + scrollLeft; 
     const newTime = Math.max(0, clickX / PX_PER_SECOND);
 
     Tone.Transport.seconds = newTime;
     setTransportTime(newTime);
-    
-    // If playing, we need to restart players at new time (simplified logic: stop/start)
-    if(isPlaying) {
-        playersRef.current.forEach(p => p.stop());
-        togglePlay(); // Toggle off
-        setTimeout(togglePlay, 10); // Toggle on (hacky but works for react state sync)
-    }
   };
 
-  // 5b. Loop Dragging
   const handleLoopDragStart = (e: React.MouseEvent, type: 'loop-start' | 'loop-end') => {
     e.stopPropagation();
     setDragState({
@@ -206,7 +170,6 @@ export default function SessionDawPage() {
     });
   };
 
-  // 5c. Clip Dragging & Trimming
   const handleClipMouseDown = (e: React.MouseEvent, trackId: number, type: 'move-clip' | 'trim-left' | 'trim-right') => {
     e.stopPropagation();
     const track = session?.tracks.find(t => t.id === trackId);
@@ -218,7 +181,6 @@ export default function SessionDawPage() {
         startX: e.clientX, 
         initialVal: type === 'move-clip' ? track.startTimeInSeconds : 
                    type === 'trim-right' ? track.endTrimInSeconds : track.startTrimInSeconds,
-        // Crucial for Trim Left: Capture both start time and trim amount
         initialStartTime: track.startTimeInSeconds,
         initialStartTrim: track.startTrimInSeconds 
     });
@@ -230,7 +192,6 @@ export default function SessionDawPage() {
     const deltaPixels = e.clientX - dragState.startX;
     const deltaSeconds = deltaPixels / PX_PER_SECOND;
 
-    // 1. Handle Loop Dragging
     if (dragState.type === 'loop-start') {
         const newStart = Math.max(0, Math.min(loopEnd - 0.5, dragState.initialVal + deltaSeconds));
         setLoopStart(newStart);
@@ -242,7 +203,6 @@ export default function SessionDawPage() {
         return;
     }
 
-    // 2. Handle Clip Modifications
     if (!session || dragState.trackId === undefined) return;
 
     setSession({
@@ -253,25 +213,17 @@ export default function SessionDawPage() {
             if (dragState.type === 'move-clip') {
                 return { ...t, startTimeInSeconds: Math.max(0, dragState.initialVal + deltaSeconds) };
             }
-            
             if (dragState.type === 'trim-left') {
-                // Determine new trim amount, bounded by 0 and duration
                 let newTrim = dragState.initialStartTrim! + deltaSeconds;
                 newTrim = Math.max(0, Math.min(t.durationInSeconds - t.endTrimInSeconds - 0.1, newTrim));
-                
-                // Calculate the ACTUAL change applied (after clamping min/max)
                 const appliedDelta = newTrim - dragState.initialStartTrim!;
-                
-                // Shift start time by the EXACT same amount we trimmed
                 return { 
                     ...t, 
                     startTrimInSeconds: newTrim, 
                     startTimeInSeconds: dragState.initialStartTime! + appliedDelta 
                 };
             }
-            
              if (dragState.type === 'trim-right') {
-                // Inverted delta because moving mouse left increases trim from end
                 const newEndTrim = Math.max(0, Math.min(t.durationInSeconds - t.startTrimInSeconds - 0.1, dragState.initialVal - deltaSeconds));
                 return { ...t, endTrimInSeconds: newEndTrim };
              }
@@ -282,88 +234,82 @@ export default function SessionDawPage() {
   };
 
   const handleGlobalMouseUp = () => {
+    // Re-sync audio for modified track on drop
+    if (dragState && dragState.trackId && session) {
+        const track = session.tracks.find(t => t.id === dragState.trackId);
+        if (track) setupTrackAudio(track);
+    }
     setDragState(null);
   };
 
-  // ... (Other handlers like save/share/add track remain the same) ...
   const handleSave = () => {
     console.log("Saving...", {session, loopStart, loopEnd});
     setHasUnsavedChanges(false);
   }
   
-  // Standard handlers to keep TS happy with partial update
   const handleNameChange = (id: number, val: string) => { setSession(prev => prev ? {...prev, tracks: prev.tracks.map(t => t.id === id ? {...t, name: val}: t)} : null); setHasUnsavedChanges(true);}
   const handleRemoveTrack = (id: number) => { setSession(prev => prev ? {...prev, tracks: prev.tracks.filter(t => t.id !== id)} : null); setHasUnsavedChanges(true);}
-  const handleVolumeChange = (id: number, val: number) => { setSession(prev => prev ? {...prev, tracks: prev.tracks.map(t => t.id === id ? {...t, volumeDb: val}: t)} : null); setHasUnsavedChanges(true);}
-  const toggleMute = (id: number) => { setSession(prev => prev ? {...prev, tracks: prev.tracks.map(t => t.id === id ? {...t, isMuted: !t.isMuted}: t)} : null); }
-  const toggleSolo = (id: number) => { setSession(prev => prev ? {...prev, tracks: prev.tracks.map(t => t.id === id ? {...t, isSolo: !t.isSolo}: t)} : null); }
+  const handleVolumeChange = (id: number, val: number) => { 
+      setSession(prev => prev ? {...prev, tracks: prev.tracks.map(t => t.id === id ? {...t, volumeDb: val}: t)} : null); 
+      setHasUnsavedChanges(true);
+      channelRef.current.get(id)?.set({volume: val});
+  }
+  const toggleMute = (id: number) => { 
+      setSession(prev => prev ? {...prev, tracks: prev.tracks.map(t => t.id === id ? {...t, isMuted: !t.isMuted}: t)} : null); 
+      const t = session?.tracks.find(x => x.id === id);
+      if(t) channelRef.current.get(id)?.set({mute: !t.isMuted});
+  }
+  const toggleSolo = (id: number) => { 
+      setSession(prev => prev ? {...prev, tracks: prev.tracks.map(t => t.id === id ? {...t, isSolo: !t.isSolo}: t)} : null);
+      const t = session?.tracks.find(x => x.id === id);
+      if(t) channelRef.current.get(id)?.set({solo: !t.isSolo});
+  }
   const markChanged = () => setHasUnsavedChanges(true);
+  
   const handleAddTrack = async (e: React.ChangeEvent<HTMLInputElement>) => {
-
     const file = e.target.files?.[0];
-    
     if (!file || !session) return;
     
-    
     const newTrack: SessionTrack = {
-    
-    id: Date.now(),
-    
-    name: file.name.replace(/\.[^/.]+$/, ""),
-    
-    sessionId: session.id,
-    
-    sessionName: session.name,
-    
-    order: session.tracks.length + 1,
-    
-    audioFileUrl: URL.createObjectURL(file),
-    
-    waveformFileUrl: '',
-    
-    durationInSeconds: 15, // Mock
-    
-    startTimeInSeconds: 0,
-    
-    startTrimInSeconds: 0,
-    
-    endTrimInSeconds: 0,
-    
-    volumeDb: 0,
-    
-    isMuted: false,
-    
-    isSolo: false,
-    
-    isMono: false,
-    
-    pan: 0,
-    
-    createdAtUtc: new Date().toISOString(),
-    
-    authorUsername: account?.username ?? 'currentUser' // Added field
-    
+        id: Date.now(),
+        name: file.name.replace(/\.[^/.]+$/, ""),
+        sessionId: session.id,
+        sessionName: session.name,
+        order: session.tracks.length + 1,
+        audioFileUrl: URL.createObjectURL(file),
+        waveformFileUrl: '',
+        durationInSeconds: 15,
+        startTimeInSeconds: 0,
+        startTrimInSeconds: 0,
+        endTrimInSeconds: 0,
+        volumeDb: 0,
+        isMuted: false,
+        isSolo: false,
+        isMono: false,
+        pan: 0,
+        createdAtUtc: new Date().toISOString(),
+        authorUsername: account?.username ?? 'currentUser'
     };
-    
-    
     
     setSession(prev => prev ? { ...prev, tracks: [...prev.tracks, newTrack] } : null);
-    
     setupTrackAudio(newTrack);
-    
     markChanged();
-    
     if (fileInputRef.current) fileInputRef.current.value = '';
-    
-    };
+  };
 
 
   if (loading || !session || !account) return <div className="daw-container">Loading...</div>;
 
+  // Ruler Calculation
+  const bpm = session.bpm || 120;
+  const secondsPerBeat = 60 / bpm;
+  const secondsPerBar = secondsPerBeat * 4; // 4/4 time signature
+  const pxPerBar = secondsPerBar * PX_PER_SECOND;
+  const totalBars = Math.ceil((session.durationInSeconds + 30) / secondsPerBar);
+
   return (
     <div className="daw-container" onMouseMove={handleGlobalMouseMove} onMouseUp={handleGlobalMouseUp}>
       
-      {/* Header */}
       <header className="daw-header">
         <div className="left-group">
             <button className="back-btn" onClick={handleGoBack} title="Back">
@@ -397,10 +343,8 @@ export default function SessionDawPage() {
         </div>
       </header>
 
-      {/* Main Area */}
       <div className="daw-workspace">
         
-        {/* Track Headers (Left) */}
         <div className="track-headers">
             <div className='timeline-ruler-placeholder'></div>
             {session.tracks.sort((a,b) => a.order - b.order).map(track => (
@@ -429,49 +373,53 @@ export default function SessionDawPage() {
             </div>
         </div>
 
-        {/* Timeline (Right) */}
         <div className="timeline-area" ref={timelineRef}>
           
-          {/* Ruler (Clickable for Seek) */}
+          {/* Updated Ruler: Showing Bars instead of Seconds */}
           <div className="timeline-ruler" onMouseDown={handleRulerMouseDown}>
-             {Array.from({ length: Math.ceil((session.durationInSeconds + 30) / 5) }).map((_, i) => (
-               <div key={i} style={{ position: 'absolute', left: i * 5 * PX_PER_SECOND, borderLeft: '1px solid #444', height: '100%', paddingLeft: '4px', pointerEvents: 'none' }}>
-                 {i * 5}s
+             {Array.from({ length: totalBars }).map((_, i) => {
+               // Only show number every 4 bars, but show ticks for every bar
+               const isMajor = i % 4 === 0;
+               return (
+                <div key={i} style={{ 
+                    position: 'absolute', 
+                    left: i * pxPerBar, 
+                    borderLeft: isMajor ? '1px solid #666' : '1px solid #333', 
+                    height: isMajor ? '100%' : '50%',
+                    bottom: 0,
+                    paddingLeft: '4px', 
+                    pointerEvents: 'none',
+                    color: isMajor ? '#888' : 'transparent'
+                }}>
+                 {i + 1}
                </div>
-             ))}
+             )})}
 
-             {/* Loop Markers (Only visible if loop is active or dragging) */}
-             {isLooping && (
-                <>
-                    {/* Loop Region Overlay */}
-                    <div className="loop-region" style={{
-                        left: loopStart * PX_PER_SECOND,
-                        width: (loopEnd - loopStart) * PX_PER_SECOND
-                    }} />
-                    
-                    {/* Start Handle */}
-                    <div 
-                        className="loop-handle start" 
-                        style={{ left: loopStart * PX_PER_SECOND }}
-                        onMouseDown={(e) => handleLoopDragStart(e, 'loop-start')}
-                        title="Drag Loop Start"
-                    />
-                    
-                    {/* End Handle */}
-                    <div 
-                        className="loop-handle end" 
-                        style={{ left: loopEnd * PX_PER_SECOND }}
-                        onMouseDown={(e) => handleLoopDragStart(e, 'loop-end')}
-                        title="Drag Loop End"
-                    />
-                </>
-             )}
+             {/* Loop Markers (Always rendered, styled via class) */}
+             <>
+                <div className={`loop-region ${!isLooping ? 'inactive' : ''}`} style={{
+                    left: loopStart * PX_PER_SECOND,
+                    width: (loopEnd - loopStart) * PX_PER_SECOND
+                }} />
+                
+                <div 
+                    className={`loop-handle start ${!isLooping ? 'inactive' : ''}`}
+                    style={{ left: loopStart * PX_PER_SECOND }}
+                    onMouseDown={(e) => handleLoopDragStart(e, 'loop-start')}
+                    title="Drag Loop Start"
+                />
+                
+                <div 
+                    className={`loop-handle end ${!isLooping ? 'inactive' : ''}`}
+                    style={{ left: loopEnd * PX_PER_SECOND }}
+                    onMouseDown={(e) => handleLoopDragStart(e, 'loop-end')}
+                    title="Drag Loop End"
+                />
+            </>
           </div>
 
-          {/* Playhead */}
           <div className="playhead" style={{ left: `${transportTime * PX_PER_SECOND}px` }} />
 
-          {/* Tracks */}
           {session.tracks.sort((a,b) => a.order - b.order).map(track => {
              const visibleDuration = track.durationInSeconds - track.startTrimInSeconds - track.endTrimInSeconds;
              return (
@@ -485,17 +433,14 @@ export default function SessionDawPage() {
                   onMouseDown={(e) => handleClipMouseDown(e, track.id, 'move-clip')}
                 >
                     <div className="resize-handle left" onMouseDown={(e) => handleClipMouseDown(e, track.id, 'trim-left')} />
-                    
                     <div className="clip-content">
                         <div className="clip-name">{track.name}</div>
                     </div>
-
                     <div className="resize-handle right" onMouseDown={(e) => handleClipMouseDown(e, track.id, 'trim-right')} />
                 </div>
               </div>
             );
           })}
-          
           <div className="track-lane empty-lane"></div>
         </div>
       </div>
