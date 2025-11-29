@@ -1,0 +1,254 @@
+@use '../../styles/variables' as *;
+
+.daw-container {
+    display: flex;
+    flex:1;
+    flex-direction: column;
+    height: 100vh;
+    overflow: hidden;
+
+
+
+  .daw-header {
+    display: flex;
+    height: 6rem;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid $color-border; // todo change
+    padding: 0 2rem;
+
+    .session-info{
+      font-weight: $font-weight-semi-bold;
+      height: 100%;
+      gap: 1rem;
+      align-items: center;
+      .bpm {
+        color: $color-text-darker;
+        font-weight: $font-weight-normal;
+        justify-content: center;
+        align-items: center;
+      }
+    }
+    .transport-controls {
+      display: flex;
+      gap: 1rem;
+      
+      button {
+        background: $color-dark;
+        border: 2px solid $color-border;
+        color: $color-text;
+        padding: 1rem 1rem;
+        border-radius: $radius-md;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+
+        &:hover { background:  $color-secondary}
+        &.active { background: $color-secondary; border-color: $color-primary; }
+      }
+      .time{
+        justify-content: center;
+        align-items: center;
+      }
+    }
+
+   
+  }
+
+  .daw-workspace {
+    flex: 1;
+    display: flex;
+    overflow: hidden;
+
+    .timeline-ruler {
+      position: relative;
+      width: 100%;
+      height: 3rem;
+      background: #2a2a2a;
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      border-bottom: 1px solid var(--color-border);
+      display: flex;
+      align-items: flex-end;
+      color: #888;
+      font-size: 10px;
+      flex-shrink: 0; /* Prevent ruler from shrinking */
+    }
+
+    .track-headers {
+      min-width: 25rem;
+      background-color: $color-dark-lighter;
+      border-right: 1px solid $color-border;
+      flex-shrink: 0;
+      overflow-y: auto;
+    flex-direction: column;
+
+      
+      .track-control-panel {
+        height: 9rem;
+      padding: 1rem 2rem;
+
+        border-bottom: 1px solid $color-border;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+
+        .track-name { font-weight: bold; font-size: var(--font-size-sm); margin-bottom: var(--space-1); }
+
+        .track-actions {
+          display: flex;
+          gap: var(--space-1);
+          
+          button {
+            font-size: 10px;
+            padding: 2px 6px;
+            border: 1px solid var(--color-border);
+            border-radius: var(--radius-sm);
+            cursor: pointer;
+            background: transparent;
+            color: #888;
+            
+            &.solo.active { background: #ffaa00; color: black; border-color: #ffaa00; }
+            &.mute.active { background: var(--color-danger); color: white; border-color: var(--color-danger); }
+          }
+        }
+
+        .track-sliders {
+            display: flex;
+            gap: var(--space-2);
+            align-items: center;
+            font-size: 10px;
+            
+            input[type="range"] { flex: 1; accent-color: var(--color-secondary); cursor: pointer;}
+        }
+      }
+
+      /* --- NEW: Add Track Button Area --- */
+      .add-track-container {
+        padding: var(--space-2);
+        border-bottom: 1px solid var(--color-border);
+        height: 60px; /* Fixed height to match empty-lane */
+        display: flex;
+        align-items: center;
+
+        .btn-add-track {
+          width: 100%;
+          height: 100%;
+          background: transparent;
+          border: 1px dashed var(--color-border);
+          color: var(--color-text-muted, #888);
+          border-radius: var(--radius-sm);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: var(--space-2);
+          cursor: pointer;
+          transition: all 0.2s;
+          font-size: var(--font-size-sm);
+
+          &:hover {
+            border-color: var(--color-secondary);
+            color: var(--color-text);
+            background-color: rgba(255,255,255,0.05);
+          }
+        }
+      }
+    }
+
+    .timeline-area {
+      flex: 1;
+      overflow-x: auto;
+      overflow-y: auto;
+      background-color: #1a1a1a;
+      display: flex;       
+      flex-direction: column;
+
+      .timeline-ruler {
+        position: relative;
+        width: 100%;
+        height: 3rem;
+        background: #2a2a2a;
+        position: sticky;
+        top: 0;
+        z-index: 10;
+        border-bottom: 1px solid var(--color-border);
+        display: flex;
+        align-items: flex-end;
+        color: #888;
+        font-size: 10px;
+        flex-shrink: 0; /* Prevent ruler from shrinking */
+      }
+
+      .playhead {
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        width: 1px;
+        background-color: $color-secondary;
+        z-index: 20;
+        pointer-events: none;
+        
+        &::after {
+          content: '';
+          position: absolute;
+          top: 0;
+          left: -5px;
+          border-left: 5px solid transparent;
+          border-right: 5px solid transparent;
+          border-top: 5px solid var(--color-secondary);
+        }
+      }
+
+      .track-lane {
+        height: 9rem; /* Must match track-control-panel height */
+        border-bottom: 1px solid var(--color-border);
+        position: relative;
+        background: repeating-linear-gradient(90deg, transparent, transparent 99px, #333 100px);
+        flex-shrink: 0; /* Prevent lanes from squishing */
+
+        /* --- NEW: Visual for empty space below tracks --- */
+
+        .audio-clip {
+          position: absolute;
+          height: 90%;
+          top: 5%;
+          background-color: var(--color-primary);
+          border: 1px solid rgba(255,255,255,0.2);
+          border-radius: var(--radius-sm);
+          overflow: hidden;
+          cursor: grab;
+          
+          &:active { cursor: grabbing; border-color: var(--color-secondary); }
+
+          .clip-waveform {
+            width: 100%;
+            height: 100%;
+            opacity: 0.6;
+            background-size: cover;
+            background-repeat: no-repeat;
+            pointer-events: none;
+          }
+
+          .resize-handle {
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            width: 10px;
+            background: rgba(0,0,0,0.3);
+            cursor: col-resize;
+            z-index: 2;
+            
+            &.left { left: 0; }
+            &.right { right: 0; }
+            &:hover { background: var(--color-secondary); }
+          }
+        }
+      }
+      .empty-lane{
+        height: 100%;
+      }
+    }
+  }
+}

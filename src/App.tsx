@@ -5,7 +5,7 @@ import DiscoverSection from "./sections/DiscoverSection";
 import YourSessionsSection from "./sections/YourSessionsSection";
 import SharedWithMeSection from "./sections/SharedWithMeSection";
 import SettingsSection from "./sections/SettingsSection";
-import DetailsPage from "./pages/DetailsPage/DetailsPage";
+import DetailsPage  from "./pages/DetailsPage";
 import AuthPage from "./pages/AuthPage";
 import { Slide, ToastContainer } from "react-toastify";
 
@@ -28,7 +28,7 @@ export default function App() {
         </Route>
 
         
-        <Route path="/details/:id" element={<DetailsPage />} />
+        <Route path="/session/:sessionToken" element={<DetailsPage />} />
 
       </Route>
     </Routes>

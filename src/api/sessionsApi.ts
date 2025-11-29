@@ -5,26 +5,26 @@ import type { Session, CreateSessionRequest, UpdateSessionRequest, SessionsReque
 export const sessionsApi = {
   async getSessions(payload: SessionsRequest):  Promise<PaginationResponse<Session>> 
   {
-    const { data } = await axiosInstance.post("/session/sessions", payload);
+    const { data } = await axiosInstance.post("/Session/Sessions", payload);
     return data;
   },
 
-  async getSessionDetail(guid: string, shareCode?: string): Promise<Response<Session>> {
-    const { data } = await axiosInstance.get(`/sessions?guid=${guid}&shareCode=${shareCode || ""}`);
+  async getSession(sessionToken: string, shareCode?: string): Promise<Response<Session>> {
+    const { data } = await axiosInstance.get(`/Session/Session?sessionToken=${sessionToken}&shareCode=${shareCode || ""}`);
     return data;
   },
 
   async createSession(payload: CreateSessionRequest): Promise<Session> {
-    const { data } = await axiosInstance.post("/session/createSession", payload);
+    const { data } = await axiosInstance.post("/Session/CreateSession", payload);
     return data;
   },
 
   async updateSession(payload: UpdateSessionRequest): Promise<Session> {
-    const { data } = await axiosInstance.put(`/session/${payload.id}`, payload);
+    const { data } = await axiosInstance.put(`/Session/${payload.id}`, payload);
     return data;
   },
 
   async deleteSession(id: string): Promise<void> {
-    await axiosInstance.delete(`/session/${id}`);
+    await axiosInstance.delete(`/Session/${id}`);
   }
 };

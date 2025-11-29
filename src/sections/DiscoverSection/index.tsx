@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
 import { sessionsApi } from "../../api/sessionsApi";
 import type { CreateSessionRequest, Session, SessionsRequest } from '../../api/types/session';
-import "./styles.scss";
 import type { PaginationResponse } from "../../api/types/common";
 import { Modal } from "../../components/Modal";
+import { SessionListItem } from "../../components/SessionListItem"; // Import the new component
+import "./styles.scss";
 
 export default function DiscoverSection() {
   const [items, setItems] = useState<Session[]>([]);
@@ -22,29 +23,27 @@ export default function DiscoverSection() {
   const loadData = async () => {
     try {
         const request : SessionsRequest = {
-            pageNumber: 1,
-            pageSize: 10,
+            pageNumber: page, // FIX: Use state, not hardcoded 1
+            pageSize: pageSize,
+            // searchText: searchText // Add this if your API supports it
         }
         
       const result: PaginationResponse<Session> = await sessionsApi.getSessions(request);
-
-      console.log("Fetched sessions:", result);
       setItems(result.data);
       setTotalCount(result.totalCount);
-    } finally {
+    } catch (error) {
+        console.error("Failed to load sessions", error);
     }
   };
 
   const handleCreateSubmit = async () => {
-    setIsModalOpen(false);
-    setCreateSessionRequest({ name: "", isPublic: true, bpm: 120 });
     try{
-      const result : Session = await sessionsApi.createSession(createSessionRequest);
-      console.log("Created session:", result);
-
-      
-    }finally {
-      loadData();
+      await sessionsApi.createSession(createSessionRequest);
+      setIsModalOpen(false);
+      setCreateSessionRequest({ name: "", isPublic: true, bpm: 120 });
+      loadData(); // Reload list after create
+    } catch (error) {
+        console.error("Failed to create", error);
     }
   };
 
@@ -57,82 +56,81 @@ export default function DiscoverSection() {
   return (
     <section className="discover">
       <div className="header">
-        <p>Discover</p> 
-        <button onClick={() => setIsModalOpen(true)}>Create Session</button>
+        <p className="title">Discover</p> 
+        <button className="btn-primary" onClick={() => setIsModalOpen(true)}>Create Session</button>
+      </div>
+
+      <div className="body">
+        <div className="search-container">
+            <input
+            className="search-input"
+            placeholder="Search sessions..."
+            value={searchText}
+            onChange={(e) => {
+                setPage(1);
+                setSearchText(e.target.value);
+            }}
+            />
         </div>
 
-    <div className="body">
-      <div className="search">
-        <input
-          placeholder="Search sessions..."
-          value={searchText}
-          onChange={(e) => {
-            setPage(1);
-            setSearchText(e.target.value);
-          }}
-        />
-      </div>
+        <div className="list-grid">
+            {items.length === 0 && (
+            <div className="empty-state">No sessions found</div>
+            )}
 
-      <div className="list">
-        {items.length === 0 && (
-          <div className="empty">No sessions found</div>
-        )}
+            {items.map((item) => (
+                // We pass the whole object here
+                <SessionListItem key={item.id} session={item} />
+            ))}
+        </div>
 
-        {
-          items.map((item) => (
-            <div className="list-item" key={item.id}>
-              <div className="left">
-                <div className="name">{item.name}</div>
-                <div className="author">{item.ownerUsername}</div>
-              </div>
-              <div className="right">
-                <div className="star-count">{item.starCount}</div>
-                <div className="share-count">{item.shareCount}</div>
-                <div className="starred">{item.isStarred}</div>
-              </div>
+        {/* Hide pagination if empty */}
+        {items.length > 0 && (
+            <div className="pagination">
+                <button
+                disabled={page === 1}
+                onClick={() => setPage((p) => p - 1)}
+                >
+                Prev
+                </button>
+
+                <span className="page-info">
+                {page} / {totalPages || 1}
+                </span>
+
+                <button
+                disabled={page === totalPages || totalPages === 0}
+                onClick={() => setPage((p) => p + 1)}
+                >
+                Next
+                </button>
             </div>
-          ))}
+        )}
       </div>
 
-      <div className="pagination">
-        <button
-          disabled={page === 1}
-          onClick={() => setPage((p) => p - 1)}
-        >
-          Prev
-        </button>
-
-        <span>
-          {page} / {totalPages || 1}
-        </span>
-
-        <button
-          disabled={page === totalPages || totalPages === 0}
-          onClick={() => setPage((p) => p + 1)}
-        >
-          Next
-        </button>
-      </div>
-      </div>
       <Modal 
         isOpen={isModalOpen} 
         onClose={() => setIsModalOpen(false)} 
         title="Create New Session"
       >
-        <label>Session Name</label>
-        <input 
-            type="text" 
-            placeholder="My Awesome Session"
-            value={createSessionRequest.name}
-            onChange={(e) => setCreateSessionRequest({...createSessionRequest, name: e.target.value})}
-        />
+        <div className="form-group">
+            <label>Session Name</label>
+            <input 
+                type="text" 
+                placeholder="My Awesome Session"
+                value={createSessionRequest.name}
+                onChange={(e) => setCreateSessionRequest({...createSessionRequest, name: e.target.value})}
+            />
+        </div>
 
-        <label>BPM</label>
-        <input 
-            type="number" 
-            value={createSessionRequest.bpm}
-            onChange={(e) => setCreateSessionRequest({...createSessionRequest, bpm: Number(e.target.value)})}
-        />
+        <div className="form-group">
+            <label>BPM</label>
+            <input 
+                type="number" 
+                value={createSessionRequest.bpm}
+                onChange={(e) => setCreateSessionRequest({...createSessionRequest, bpm: Number(e.target.value)})}
+            />
+        </div>
 
         <div className="checkbox-group">
             <input 
@@ -145,8 +143,8 @@ export default function DiscoverSection() {
         </div>
 
         <div className="modal-actions">
-            <button className="cancel" onClick={() => setIsModalOpen(false)}>Cancel</button>
-            <button className="save" onClick={handleCreateSubmit}>Create</button>
+            <button className="btn-secondary" onClick={() => setIsModalOpen(false)}>Cancel</button>
+            <button className="btn-primary" onClick={handleCreateSubmit}>Create</button>
         </div>
       </Modal>
     </section>
