@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import * as Tone from 'tone';
 import { 
   Play, Pause, Square, Repeat, Volume2, Plus, Trash2, Save, Share2, ArrowLeft, 
-  Mic, Upload, Circle, Disc 
+  Mic, Upload, Circle, Disc, Menu, X 
 } from 'lucide-react';
 import './styles.scss'; 
 
@@ -35,16 +35,16 @@ export default function SessionDawPage() {
   const [loopStart, setLoopStart] = useState(0);
   const [loopEnd, setLoopEnd] = useState(10); 
 
-  // --- Recording State ---
   const [armedTrackId, setArmedTrackId] = useState<number | null>(null);
   const [recordingStartTime, setRecordingStartTime] = useState(0);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
 
-  // --- Modal State ---
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [addMode, setAddMode] = useState<'select' | 'upload'>('select');
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   const playersRef = useRef<Map<number, Tone.Player>>(new Map());
   const channelRef = useRef<Map<number, Tone.Channel>>(new Map());
@@ -91,7 +91,6 @@ export default function SessionDawPage() {
   }, [isLooping, loopStart, loopEnd]);
 
   const setupTrackAudio = (track: SessionTrack) => {
-    // If track has no audio URL (empty track), just setup channel
     if(channelRef.current.has(track.id)) channelRef.current.get(track.id)?.dispose();
 
     const channel = new Tone.Channel({
@@ -131,12 +130,9 @@ export default function SessionDawPage() {
     navigate(-1);
   };
 
-  // --- Transport Logic ---
-
   const togglePlay = async () => {
     if (Tone.context.state !== 'running') await Tone.start();
     
-    // If we are recording, hitting play acts as stop (standard DAW behavior usually)
     if (isRecording) {
         stop();
         return;
@@ -149,7 +145,7 @@ export default function SessionDawPage() {
 
   const handleRecordClick = async () => {
     if (isRecording) {
-        stop(); // Clicking record while recording stops it
+        stop(); 
         return;
     }
 
@@ -158,10 +154,8 @@ export default function SessionDawPage() {
         return;
     }
 
-    // Start Recording Flow
     try {
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        console.log(".",stream)
         mediaRecorderRef.current = new MediaRecorder(stream);
         audioChunksRef.current = [];
 
@@ -175,7 +169,7 @@ export default function SessionDawPage() {
 
         if (Tone.context.state !== 'running') await Tone.start();
         
-        setRecordingStartTime(Tone.Transport.seconds); // Capture start time
+        setRecordingStartTime(Tone.Transport.seconds);
         mediaRecorderRef.current.start();
         Tone.Transport.start();
         
@@ -189,18 +183,15 @@ export default function SessionDawPage() {
 
   const handleRecordingStop = async (stream: MediaStream) => {
     const blob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
-    stream.getTracks().forEach(t => t.stop()); // Release mic
+    stream.getTracks().forEach(t => t.stop()); 
 
     if (!session || !armedTrackId) return;
 
-    // Process new clip
     const arrayBuffer = await blob.arrayBuffer();
     const audioBuffer = await Tone.context.decodeAudioData(arrayBuffer);
     const duration = audioBuffer.duration;
     const blobUrl = URL.createObjectURL(blob);
 
-    // Update the armed track
-    // Note: This replaces existing audio on that track. 
     setSession(prev => {
         if (!prev) return null;
         return {
@@ -211,23 +202,18 @@ export default function SessionDawPage() {
                     ...t,
                     audioFileUrl: blobUrl,
                     durationInSeconds: duration,
-                    startTimeInSeconds: recordingStartTime, // Placed where cursor was
+                    startTimeInSeconds: recordingStartTime,
                     startTrimInSeconds: 0,
                     endTrimInSeconds: 0,
-                    name: `Rec_${new Date().toLocaleTimeString()}`, // Optional: Rename
-                    file: new File([blob], "recording.webm", { type: 'audio/webm' }) // Prepare for save
+                    name: `Rec_${new Date().toLocaleTimeString()}`,
+                    file: new File([blob], "recording.webm", { type: 'audio/webm' }) 
                 };
             })
         };
     });
 
-    // Re-initialize audio for this track so we can hear it back immediately
-    // Use timeout to let state update first or just force it using the vars
-    // We can just call setupTrackAudio with the new data object logic manually if needed, 
-    // but the effect/render cycle might need a nudge or we call setup explicitly.
     setTimeout(() => {
         const updatedTrack = session?.tracks.find(t => t.id === armedTrackId);
-        // We construct a temp object because state update is async
         if (updatedTrack) {
              setupTrackAudio({
                  ...updatedTrack, 
@@ -241,8 +227,7 @@ export default function SessionDawPage() {
     }, 100);
 
     setHasUnsavedChanges(true);
-    setArmedTrackId(null); // Unarm after recording? Or keep armed? Usually keep armed. 
-                           // For safety let's keep armed so they can do another take if they undo.
+    setArmedTrackId(null); 
   };
 
   const stop = () => {
@@ -255,7 +240,6 @@ export default function SessionDawPage() {
     setTransportTime(0);
   };
 
-  // --- Drag Logic (Unchanged) ---
   const [dragState, setDragState] = useState<{
     type: 'move-clip' | 'trim-left' | 'trim-right' | 'loop-start' | 'loop-end',
     trackId?: number, 
@@ -378,11 +362,8 @@ export default function SessionDawPage() {
   }
   
   const toggleArm = (id: number) => {
-    // Logic: If clicking already armed, unarm. If clicking new, arm new (single track arming for simplicity)
     setArmedTrackId(prev => prev === id ? null : id);
   };
-
-  // --- Add Track Flow ---
 
   const resetModal = () => {
     setAddMode('select');
@@ -392,10 +373,10 @@ export default function SessionDawPage() {
   const handleCreateEmptyTrack = () => {
     if(!session) return;
     const newTrack: SessionTrack = {
-        id: -Date.now(), // Temp ID
+        id: -Date.now(),
         sessionId: session.id,
         name: "Audio " + (session.tracks.length + 1),
-        audioFileUrl: "", // Empty!
+        audioFileUrl: "", 
         durationInSeconds: 0,
         startTimeInSeconds: 0,
         startTrimInSeconds: 0,
@@ -444,6 +425,36 @@ export default function SessionDawPage() {
     resetModal();
   };
 
+  const renderTransportControls = (isMobile: boolean) => (
+    <div className={`transport-wrapper ${isMobile ? 'mobile-layout' : 'desktop-layout'}`}>
+      <div className="transport-controls">
+        <button onClick={() => setIsLooping(!isLooping)} className={isLooping ? 'active' : ''} title="Loop"><Repeat size={16} /></button>
+        <button onClick={stop} title="Stop"><Square size={16} fill="currentColor" /></button>
+        
+        <button onClick={handleRecordClick} className={`record-btn ${isRecording ? 'recording' : ''}`} title="Record">
+            <Circle size={16} fill="currentColor" />
+        </button>
+
+        <button onClick={togglePlay} className="primary" title={isPlaying ? "Pause" : "Play"}>
+          {isPlaying ? <Pause size={18} fill="currentColor"/> : <Play size={18} fill="currentColor"/>}
+        </button>
+        <div className='time'>{transportTime.toFixed(2)}s</div>
+      </div>
+
+      <div className="action-buttons">
+          <button className="share-btn" onClick={() => alert("Share")}>
+              <Share2 size={16} /> <span className="text-label">Share</span>
+          </button>
+          <button 
+              className={`save-btn ${hasUnsavedChanges ? 'unsaved' : ''}`} 
+              onClick={handleSave}
+              disabled={!hasUnsavedChanges}
+          >
+              <Save size={16} /> <span className="text-label">Save</span>
+          </button>
+      </div>
+    </div>
+  );
 
   if (loading || !session || !account) return <div className="daw-container">Loading...</div>;
 
@@ -462,40 +473,30 @@ export default function SessionDawPage() {
                 <ArrowLeft size={20} />
             </button>
             <div className="session-info">
-            {session.name} <div className='bpm'> {session.bpm} BPM</div>  
+              <span className="name">{session.name}</span> 
+              <span className='bpm'> {session.bpm} BPM</span>  
             </div>
         </div>
         
-        <div className="transport-controls">
-          <button onClick={() => setIsLooping(!isLooping)} className={isLooping ? 'active' : ''} title="Loop"><Repeat size={16} /></button>
-          <button onClick={stop} title="Stop"><Square size={16} fill="currentColor" /></button>
-          
-          <button onClick={handleRecordClick} className={`record-btn ${isRecording ? 'recording' : ''}`} title="Record">
-             <Circle size={16} fill="currentColor" />
-          </button>
-
-          <button onClick={togglePlay} className="primary" title={isPlaying ? "Pause" : "Play"}>
-            {isPlaying ? <Pause size={18} fill="currentColor"/> : <Play size={18} fill="currentColor"/>}
-          </button>
-          <div className='time'>{transportTime.toFixed(2)}s</div>
+        {/* Desktop Controls */}
+        <div className="desktop-controls-container">
+            {renderTransportControls(false)}
         </div>
 
-        <div className="action-buttons">
-            <button className="share-btn" onClick={() => alert("Share")}>
-                <Share2 size={16} /> Share
-            </button>
-            <button 
-                className={`save-btn ${hasUnsavedChanges ? 'unsaved' : ''}`} 
-                onClick={handleSave}
-                disabled={!hasUnsavedChanges}
-            >
-                <Save size={16} /> Save
-            </button>
-        </div>
+        <button className="mobile-sidebar-toggle" onClick={() => setIsSidebarOpen(!isSidebarOpen)}>
+            {isSidebarOpen ? <X size={20} /> : <Menu size={20} />}
+        </button>
       </header>
 
       <div className="daw-workspace">
-        <div className="track-headers">
+        
+        {/* Sidebar */}
+        <div className={`track-headers ${isSidebarOpen ? 'open' : ''}`}>
+            <div className="mobile-sidebar-header">
+                <h3>Tracks</h3>
+                <button onClick={() => setIsSidebarOpen(false)}><X size={16} /></button>
+            </div>
+
             <div className='timeline-ruler-placeholder'></div>
             {session.tracks.sort((a,b) => a.order - b.order).map(track => (
                 <div key={track.id} className="track-control-panel">
@@ -507,11 +508,9 @@ export default function SessionDawPage() {
                         )}
                     </div>
                     <div className="track-actions">
-                        {/* Record Arm Button */}
                         <button 
                             className={`arm ${armedTrackId === track.id ? 'active' : ''}`} 
                             onClick={() => toggleArm(track.id)}
-                            title="Arm for Recording"
                         >
                             R
                         </button>
@@ -530,6 +529,9 @@ export default function SessionDawPage() {
                 <button className="btn-add-track" onClick={() => setIsAddModalOpen(true)}><Plus size={16} /> Add Track</button>
             </div>
         </div>
+        
+        {/* Overlay for mobile when sidebar is open */}
+        {isSidebarOpen && <div className="sidebar-overlay" onClick={() => setIsSidebarOpen(false)} />}
 
         <div className="timeline-area" ref={timelineRef}>
           <div className="timeline-ruler" onMouseDown={handleRulerMouseDown}>
@@ -570,7 +572,6 @@ export default function SessionDawPage() {
                         <div className="resize-handle right" onMouseDown={(e) => handleClipMouseDown(e, track.id, 'trim-right')} />
                     </div>
                 )}
-                {/* Visual indicator for empty/armed tracks if needed */}
                 {!hasAudio && armedTrackId === track.id && isRecording && (
                     <div className="recording-indicator" style={{ left: `${recordingStartTime * PX_PER_SECOND}px`}}>
                          Recording...
@@ -581,6 +582,11 @@ export default function SessionDawPage() {
           })}
           <div className="track-lane empty-lane"></div>
         </div>
+      </div>
+
+      {/* Mobile Bottom Controls */}
+      <div className="mobile-bottom-controls">
+        {renderTransportControls(true)}
       </div>
 
       <Modal 
