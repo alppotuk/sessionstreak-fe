@@ -1,71 +1,66 @@
-import React, { useEffect, useState, useRef } from 'react';
+import  { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import * as Tone from 'tone';
 import { 
-  Play, Pause, Square, Repeat, Volume2, Plus, Trash2, Save, Share2, ArrowLeft, 
-  Mic, Upload, Circle, Disc, Menu, X 
+  Play, Square, Volume2, VolumeX,  Trash2, Save,  ArrowLeft, 
+  Mic, Settings,  Loader
 } from 'lucide-react';
 import './styles.scss'; 
 
 import { sessionsApi } from '../../api/sessionsApi'; 
 import type { Session, SessionTrack, UpdateSessionRequest } from '../../api/types/session';
 import { useAuth } from '../../context/AuthContext';
-import { Modal } from '../../components/Modal'; 
 
-const PX_PER_SECOND = 50;
+// Looper için sabitler
+const DEFAULT_BARS = 4;
+const LATENCY_STEP_MS = 10;
 
 export default function SessionDawPage() {
   const { account } = useAuth();
   const { sessionToken } = useParams<{ sessionToken: string }>();
   const navigate = useNavigate();
 
+  // --- STATE ---
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
-  
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
-  const [editingTrackId, setEditingTrackId] = useState<number | null>(null);
-
-  const timelineRef = useRef<HTMLDivElement>(null);
-   
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [isRecording, setIsRecording] = useState(false);
-  const [transportTime, setTransportTime] = useState(0);
   
-  const [isLooping, setIsLooping] = useState(false);
-  const [loopStart, setLoopStart] = useState(0);
-  const [loopEnd, setLoopEnd] = useState(10); 
+  // Looper State
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [recordingState, setRecordingState] = useState<'idle' | 'counting' | 'recording'>('idle');
+  const [countIn, setCountIn] = useState(0);
+  const [progress, setProgress] = useState(0); // %0 - %100 arası global loop ilerlemesi
+  const [editingTrackId, setEditingTrackId] = useState<number | null>(null); // Slip Edit açılan track
 
-  const [armedTrackId, setArmedTrackId] = useState<number | null>(null);
-  const [recordingStartTime, setRecordingStartTime] = useState(0);
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const audioChunksRef = useRef<Blob[]>([]);
-
-  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-  const [addMode, setAddMode] = useState<'select' | 'upload'>('select');
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-
+  // Audio Refs
   const playersRef = useRef<Map<number, Tone.Player>>(new Map());
   const channelRef = useRef<Map<number, Tone.Channel>>(new Map());
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
   const animationFrameRef = useRef<number | null>(null);
+  const startTimeRef = useRef<number>(0);
 
+  // --- INIT ---
   useEffect(() => {
     const loadSession = async () => {
       if (!sessionToken || !account) return;
       try {
         const response = await sessionsApi.getSession(sessionToken);
         const data = response.data;
-        setSession(data); 
         
-        setIsLooping(data.isLoopActive);
-        setLoopStart(data.loopStartInSeconds || 0);
-        setLoopEnd(data.lookEndInSeconds || 10);
-        
-        Tone.Transport.bpm.value = data.bpm;
-        Tone.Transport.loop = data.isLoopActive;
-        Tone.Transport.loopStart = data.loopStartInSeconds || 0;
-        Tone.Transport.loopEnd = data.lookEndInSeconds || 10;
+        // Looper Varsayılanları (Veritabanında yoksa)
+        if (!data.loopEndInSeconds) {
+            const beatDuration = 60 / (data.bpm || 120);
+            data.loopEndInSeconds = beatDuration * 4 * DEFAULT_BARS; 
+        }
+
+        setSession(data);
+        const transport = Tone.getTransport();
+
+        transport.bpm.value = data.bpm;
+        transport.loop = true;
+        transport.loopStart = 0;
+        transport.loopEnd = data.loopEndInSeconds;
 
         await Tone.loaded();
         data.tracks.forEach(track => setupTrackAudio(track));
@@ -79,81 +74,92 @@ export default function SessionDawPage() {
     return () => {
       playersRef.current.forEach(p => p.dispose());
       channelRef.current.forEach(c => c.dispose());
-      if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current);
+      cancelAnimationFrame(animationFrameRef.current!);
       Tone.Transport.stop();
     };
   }, [sessionToken, account]);
 
-  useEffect(() => {
-    Tone.Transport.loop = isLooping;
-    Tone.Transport.loopStart = loopStart;
-    Tone.Transport.loopEnd = loopEnd;
-  }, [isLooping, loopStart, loopEnd]);
-
+  // --- AUDIO SETUP ---
   const setupTrackAudio = (track: SessionTrack) => {
+    // Kanal oluştur
     if(channelRef.current.has(track.id)) channelRef.current.get(track.id)?.dispose();
-
     const channel = new Tone.Channel({
       volume: track.volumeDb,
-      pan: track.pan,
       mute: track.isMuted,
       solo: track.isSolo
     }).toDestination();
     channelRef.current.set(track.id, channel);
 
+    // Player oluştur
     if(playersRef.current.has(track.id)) playersRef.current.get(track.id)?.dispose();
 
     if (track.audioFileUrl) {
         const player = new Tone.Player({
             url: track.audioFileUrl,
+            loop: true, // Looper mantığı: her track loop döner
             onload: () => {
-                player.sync();
-                const duration = track.durationInSeconds - track.startTrimInSeconds - track.endTrimInSeconds;
-                player.start(track.startTimeInSeconds, track.startTrimInSeconds, duration);
+                player.sync().start(0);
+                // Latency (Slip) ayarı buraya eklenebilir: player.start(offset) 
+                // Ancak Tone.js sync modunda loop offset biraz trick'lidir, MVP için start(0) yeterli.
             },
         }).connect(channel);
         playersRef.current.set(track.id, player);
     }
   };
 
+  // --- LOOP ENGINE ---
   useEffect(() => {
-    const syncLoop = () => {
-      setTransportTime(Tone.Transport.seconds);
-      animationFrameRef.current = requestAnimationFrame(syncLoop);
-    };
-    if (isPlaying) syncLoop();
-    else if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current);
-  }, [isPlaying]);
+    if (isPlaying || recordingState === 'recording') {
+        const loopDuration = Tone.Transport.loopEnd as number;
+        
+        const loopEngine = () => {
+            // Tone.Transport.seconds, loop süresince artar ve sıfırlanır
+            const current = Tone.Transport.seconds;
+            const pct = (current / loopDuration) * 100;
+            setProgress(pct);
 
-  const handleGoBack = () => {
-    if (hasUnsavedChanges && !window.confirm("You have unsaved changes. Leave anyway?")) return;
-    navigate(-1);
-  };
+            // Kayıt Bitiş Kontrolü
+            if (recordingState === 'recording') {
+                // Eğer döngü başa sardıysa (current çok küçükse) ve kayıt eskiyse durdur
+                if (current < 0.1 && (Date.now() - startTimeRef.current > 1000)) {
+                    finishRecording();
+                }
+            }
+            animationFrameRef.current = requestAnimationFrame(loopEngine);
+        };
+        animationFrameRef.current = requestAnimationFrame(loopEngine);
+    } else {
+        cancelAnimationFrame(animationFrameRef.current!);
+    }
+  }, [isPlaying, recordingState]);
 
-  const togglePlay = async () => {
+
+  // --- ACTIONS ---
+
+  const handleRecordSequence = async () => {
+    if (recordingState !== 'idle') return; // Zaten kayıttaysa çık
     if (Tone.context.state !== 'running') await Tone.start();
-    
-    if (isRecording) {
-        stop();
-        return;
-    }
 
-    if (isPlaying) Tone.Transport.pause();
-    else Tone.Transport.start();
-    setIsPlaying(!isPlaying);
+    // 1. Playback'i durdur, başa sar
+    Tone.Transport.stop();
+    setIsPlaying(false);
+    setProgress(0);
+    setRecordingState('counting');
+
+    // 2. Count-In (Geri Sayım - 4 Beat)
+    let count = 4;
+    setCountIn(count);
+    const interval = setInterval(() => {
+        count--;
+        setCountIn(count);
+        if (count === 0) {
+            clearInterval(interval);
+            startRecording();
+        }
+    }, (60 / (session?.bpm || 120)) * 1000); // BPM'e göre hız
   };
 
-  const handleRecordClick = async () => {
-    if (isRecording) {
-        stop(); 
-        return;
-    }
-
-    if (!armedTrackId) {
-        alert("Please arm a track (R) first.");
-        return;
-    }
-
+  const startRecording = async () => {
     try {
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
         mediaRecorderRef.current = new MediaRecorder(stream);
@@ -163,462 +169,274 @@ export default function SessionDawPage() {
             if (e.data.size > 0) audioChunksRef.current.push(e.data);
         };
 
-        mediaRecorderRef.current.onstop = () => {
-            handleRecordingStop(stream);
-        };
-
-        if (Tone.context.state !== 'running') await Tone.start();
-        
-        setRecordingStartTime(Tone.Transport.seconds);
         mediaRecorderRef.current.start();
-        Tone.Transport.start();
-        
-        setIsRecording(true);
+        setRecordingState('recording');
         setIsPlaying(true);
+        
+        // Tam barda başlamak için
+        Tone.Transport.stop();
+        Tone.Transport.position = 0;
+        Tone.Transport.start();
+        startTimeRef.current = Date.now();
+
     } catch (err) {
         console.error("Mic Error", err);
-        alert("Could not access microphone.");
+        setRecordingState('idle');
+        alert("Microphone access denied.");
     }
   };
 
-  const handleRecordingStop = async (stream: MediaStream) => {
-    const blob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
-    stream.getTracks().forEach(t => t.stop()); 
-
-    if (!session || !armedTrackId) return;
-
-    const arrayBuffer = await blob.arrayBuffer();
-    const audioBuffer = await Tone.context.decodeAudioData(arrayBuffer);
-    const duration = audioBuffer.duration;
-    const blobUrl = URL.createObjectURL(blob);
-
-    setSession(prev => {
-        if (!prev) return null;
-        return {
-            ...prev,
-            tracks: prev.tracks.map(t => {
-                if (t.id !== armedTrackId) return t;
-                return {
-                    ...t,
-                    audioFileUrl: blobUrl,
-                    durationInSeconds: duration,
-                    startTimeInSeconds: recordingStartTime,
-                    startTrimInSeconds: 0,
-                    endTrimInSeconds: 0,
-                    name: `Rec_${new Date().toLocaleTimeString()}`,
-                    file: new File([blob], "recording.webm", { type: 'audio/webm' }) 
-                };
-            })
-        };
-    });
-
-    setTimeout(() => {
-        const updatedTrack = session?.tracks.find(t => t.id === armedTrackId);
-        if (updatedTrack) {
-             setupTrackAudio({
-                 ...updatedTrack, 
-                 audioFileUrl: blobUrl, 
-                 startTimeInSeconds: recordingStartTime,
-                 durationInSeconds: duration,
-                 startTrimInSeconds: 0,
-                 endTrimInSeconds: 0
-             });
-        }
-    }, 100);
-
-    setHasUnsavedChanges(true);
-    setArmedTrackId(null); 
-  };
-
-  const stop = () => {
-    if (isRecording && mediaRecorderRef.current) {
+  const finishRecording = () => {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
         mediaRecorderRef.current.stop();
-        setIsRecording(false);
+        // Stream tracks kapat
+        mediaRecorderRef.current.stream.getTracks().forEach(t => t.stop());
     }
-    Tone.Transport.stop();
-    setIsPlaying(false);
-    setTransportTime(0);
+
+    setRecordingState('idle');
+    // Session güncelleme işlemi onstop eventinde yapılacak,
+    // ama state senkronizasyonu için burada Tone.js'i durdurmuyoruz, loop devam etsin.
+    
+    // Blob'u işle
+    setTimeout(async () => {
+        const blob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+        const blobUrl = URL.createObjectURL(blob);
+        const arrayBuffer = await blob.arrayBuffer();
+        const audioBuffer = await Tone.context.decodeAudioData(arrayBuffer);
+
+        const newTrack: SessionTrack = {
+            id: -Date.now(),
+            sessionId: session!.id,
+            name: `Loop ${session!.tracks.length + 1}`,
+            audioFileUrl: blobUrl,
+            durationInSeconds: audioBuffer.duration,
+            startTimeInSeconds: 0,
+            startTrimInSeconds: 0,
+            endTrimInSeconds: 0,
+            volumeDb: 0,
+            pan: 0,
+            isMuted: false,
+            isSolo: false,
+            isMono: false,
+            order: session!.tracks.length,
+            createdAtUtc: new Date().toISOString(),
+            // @ts-ignore (Backend'de yoksa frontend state için ekliyoruz)
+            latencyOffsetMs: 0 
+        };
+
+        setSession(prev => prev ? { ...prev, tracks: [...prev.tracks, newTrack] } : null);
+        setupTrackAudio(newTrack);
+        setHasUnsavedChanges(true);
+    }, 200);
   };
 
-  const [dragState, setDragState] = useState<{
-    type: 'move-clip' | 'trim-left' | 'trim-right' | 'loop-start' | 'loop-end',
-    trackId?: number, 
-    startX: number, 
-    initialVal: number,
-    initialStartTrim?: number, 
-    initialStartTime?: number
-  } | null>(null);
-
-  const handleRulerMouseDown = (e: React.MouseEvent) => {
-    if ((e.target as HTMLElement).classList.contains('loop-handle')) return;
-    const rect = timelineRef.current?.getBoundingClientRect();
-    if (!rect) return;
-    const scrollLeft = timelineRef.current?.scrollLeft || 0;
-    const clickX = e.clientX - rect.left + scrollLeft; 
-    const newTime = Math.max(0, clickX / PX_PER_SECOND);
-    Tone.Transport.seconds = newTime;
-    setTransportTime(newTime);
+  const togglePlay = async () => {
+    if (Tone.context.state !== 'running') await Tone.start();
+    
+    if (isPlaying) {
+        Tone.Transport.pause();
+        setIsPlaying(false);
+    } else {
+        Tone.Transport.start();
+        setIsPlaying(true);
+    }
   };
 
-  const handleLoopDragStart = (e: React.MouseEvent, type: 'loop-start' | 'loop-end') => {
-    e.stopPropagation();
-    setDragState({ type, startX: e.clientX, initialVal: type === 'loop-start' ? loopStart : loopEnd });
-  };
-
-  const handleClipMouseDown = (e: React.MouseEvent, trackId: number, type: 'move-clip' | 'trim-left' | 'trim-right') => {
-    e.stopPropagation();
-    const track = session?.tracks.find(t => t.id === trackId);
-    if (!track) return;
-    setDragState({ 
-        trackId, type, startX: e.clientX, 
-        initialVal: type === 'move-clip' ? track.startTimeInSeconds : type === 'trim-right' ? track.endTrimInSeconds : track.startTrimInSeconds,
-        initialStartTime: track.startTimeInSeconds, initialStartTrim: track.startTrimInSeconds 
+  // --- TRACK MANIPULATION ---
+  const toggleMute = (id: number) => {
+    setSession(prev => {
+        if(!prev) return null;
+        const newTracks = prev.tracks.map(t => t.id === id ? { ...t, isMuted: !t.isMuted } : t);
+        return { ...prev, tracks: newTracks };
     });
-  };
-
-  const handleGlobalMouseMove = (e: React.MouseEvent) => {
-    if (!dragState) return;
-    const deltaPixels = e.clientX - dragState.startX;
-    const deltaSeconds = deltaPixels / PX_PER_SECOND;
-
-    if (dragState.type === 'loop-start') {
-        setLoopStart(Math.max(0, Math.min(loopEnd - 0.5, dragState.initialVal + deltaSeconds)));
-        return;
-    }
-    if (dragState.type === 'loop-end') {
-        setLoopEnd(Math.max(loopStart + 0.5, dragState.initialVal + deltaSeconds));
-        return;
-    }
-    if (!session || dragState.trackId === undefined) return;
-
-    setSession({
-        ...session,
-        tracks: session.tracks.map(t => {
-            if (t.id !== dragState.trackId) return t;
-            if (dragState.type === 'move-clip') return { ...t, startTimeInSeconds: Math.max(0, dragState.initialVal + deltaSeconds) };
-            if (dragState.type === 'trim-left') {
-                let newTrim = dragState.initialStartTrim! + deltaSeconds;
-                newTrim = Math.max(0, Math.min(t.durationInSeconds - t.endTrimInSeconds - 0.1, newTrim));
-                return { ...t, startTrimInSeconds: newTrim, startTimeInSeconds: dragState.initialStartTime! + (newTrim - dragState.initialStartTrim!) };
-            }
-             if (dragState.type === 'trim-right') {
-                const newEndTrim = Math.max(0, Math.min(t.durationInSeconds - t.startTrimInSeconds - 0.1, dragState.initialVal - deltaSeconds));
-                return { ...t, endTrimInSeconds: newEndTrim };
-             }
-            return t;
-        })
-    });
+    const track = session?.tracks.find(t => t.id === id);
+    if(track) channelRef.current.get(id)?.set({ mute: !track.isMuted });
     setHasUnsavedChanges(true);
   };
 
-  const handleGlobalMouseUp = () => {
-    if (dragState && dragState.trackId && session) {
-        const track = session.tracks.find(t => t.id === dragState.trackId);
-        if (track) setupTrackAudio(track);
-    }
-    setDragState(null);
+  const deleteTrack = (id: number) => {
+    if(!window.confirm("Remove this loop?")) return;
+    setSession(prev => prev ? { ...prev, tracks: prev.tracks.filter(t => t.id !== id) } : null);
+    playersRef.current.get(id)?.dispose();
+    playersRef.current.delete(id);
+    channelRef.current.get(id)?.dispose();
+    setHasUnsavedChanges(true);
+  };
+
+  const nudgeTrack = (id: number, deltaMs: number) => {
+      // Slip edit: sadece state güncelliyoruz, görsel olarak kayıyor.
+      setSession(prev => {
+          if(!prev) return null;
+          return {
+              ...prev,
+              tracks: prev.tracks.map(t => {
+                  if (t.id !== id) return t;
+                  // @ts-ignore
+                  const currentOffset = t.latencyOffsetMs || 0;
+                  return { ...t, latencyOffsetMs: currentOffset + deltaMs };
+              })
+          }
+      });
+      setHasUnsavedChanges(true);
   };
 
   const handleSave = async () => {
-    if (!session) return;
-    try {
-      const payload : UpdateSessionRequest = {
-        ...session,
-        isLoopActive: isLooping,
-        loopStartInSeconds: loopStart,
-        loopEndInSeconds: loopEnd
-      };
-      await sessionsApi.updateSession(payload);
-      setHasUnsavedChanges(false);
-    } catch (error) {
-      console.error("Failed to save session", error);
-      alert("Failed to save changes.");
-    }
-  };
-  
-  const handleNameChange = (id: number, val: string) => { setSession(prev => prev ? {...prev, tracks: prev.tracks.map(t => t.id === id ? {...t, name: val}: t)} : null); setHasUnsavedChanges(true);}
-  const handleRemoveTrack = (id: number) => { 
-      setSession(prev => prev ? {...prev, tracks: prev.tracks.filter(t => t.id !== id)} : null); 
-      setHasUnsavedChanges(true);
-      playersRef.current.get(id)?.dispose();
-      playersRef.current.delete(id);
-      channelRef.current.get(id)?.dispose();
-      channelRef.current.delete(id);
-  }
-  const handleVolumeChange = (id: number, val: number) => { 
-      setSession(prev => prev ? {...prev, tracks: prev.tracks.map(t => t.id === id ? {...t, volumeDb: val}: t)} : null); 
-      setHasUnsavedChanges(true);
-      channelRef.current.get(id)?.set({volume: val});
-  }
-  const toggleMute = (id: number) => { 
-      setSession(prev => prev ? {...prev, tracks: prev.tracks.map(t => t.id === id ? {...t, isMuted: !t.isMuted}: t)} : null); 
-      const t = session?.tracks.find(x => x.id === id);
-      if(t) channelRef.current.get(id)?.set({mute: !t.isMuted});
-  }
-  const toggleSolo = (id: number) => { 
-      setSession(prev => prev ? {...prev, tracks: prev.tracks.map(t => t.id === id ? {...t, isSolo: !t.isSolo}: t)} : null);
-      const t = session?.tracks.find(x => x.id === id);
-      if(t) channelRef.current.get(id)?.set({solo: !t.isSolo});
-  }
-  
-  const toggleArm = (id: number) => {
-    setArmedTrackId(prev => prev === id ? null : id);
+      if(!session) return;
+      try {
+          const payload: UpdateSessionRequest = { ...session };
+          await sessionsApi.updateSession(payload);
+          setHasUnsavedChanges(false);
+      } catch (e) {
+          alert("Save failed");
+      }
   };
 
-  const resetModal = () => {
-    setAddMode('select');
-    setIsAddModalOpen(false);
-  };
-
-  const handleCreateEmptyTrack = () => {
-    if(!session) return;
-    const newTrack: SessionTrack = {
-        id: -Date.now(),
-        sessionId: session.id,
-        name: "Audio " + (session.tracks.length + 1),
-        audioFileUrl: "", 
-        durationInSeconds: 0,
-        startTimeInSeconds: 0,
-        startTrimInSeconds: 0,
-        endTrimInSeconds: 0,
-        volumeDb: 0,
-        pan: 0,
-        isMuted: false,
-        isSolo: false,
-        order: session.tracks.length + 1,
-    } as any; 
-
-    setSession(prev => prev ? { ...prev, tracks: [...prev.tracks, newTrack] } : null);
-    setupTrackAudio(newTrack);
-    setHasUnsavedChanges(true);
-    resetModal();
-  };
-
-  const handleConfirmUpload = async (file: File) => {
-    if (!session) return;
-    const arrayBuffer = await file.arrayBuffer();
-    const audioBuffer = await Tone.context.decodeAudioData(arrayBuffer);
-    const duration = audioBuffer.duration;
-    const tempUrl = URL.createObjectURL(file);
-    const tempId = -Date.now(); 
-
-    const newTrack: SessionTrack = {
-        id: tempId,
-        sessionId: session.id,
-        name: file.name.replace(/\.[^/.]+$/, ""),
-        audioFileUrl: tempUrl,
-        durationInSeconds: duration,
-        startTimeInSeconds: 0,
-        startTrimInSeconds: 0,
-        endTrimInSeconds: 0,
-        volumeDb: 0,
-        pan: 0,
-        isMuted: false,
-        isSolo: false,
-        order: session.tracks.length + 1,
-        file: file 
-    } as any; 
-
-    setSession(prev => prev ? { ...prev, tracks: [...prev.tracks, newTrack] } : null);
-    setupTrackAudio(newTrack);
-    setHasUnsavedChanges(true);
-    resetModal();
-  };
-
-  const renderTransportControls = (isMobile: boolean) => (
-    <div className={`transport-wrapper ${isMobile ? 'mobile-layout' : 'desktop-layout'}`}>
-      <div className="transport-controls">
-        <button onClick={() => setIsLooping(!isLooping)} className={isLooping ? 'active' : ''} title="Loop"><Repeat size={16} /></button>
-        <button onClick={stop} title="Stop"><Square size={16} fill="currentColor" /></button>
-        
-        <button onClick={handleRecordClick} className={`record-btn ${isRecording ? 'recording' : ''}`} title="Record">
-            <Circle size={16} fill="currentColor" />
-        </button>
-
-        <button onClick={togglePlay} className="primary" title={isPlaying ? "Pause" : "Play"}>
-          {isPlaying ? <Pause size={18} fill="currentColor"/> : <Play size={18} fill="currentColor"/>}
-        </button>
-        <div className='time'>{transportTime.toFixed(2)}s</div>
-      </div>
-
-      <div className="action-buttons">
-          <button className="share-btn" onClick={() => alert("Share")}>
-              <Share2 size={16} /> <span className="text-label">Share</span>
-          </button>
-          <button 
-              className={`save-btn ${hasUnsavedChanges ? 'unsaved' : ''}`} 
-              onClick={handleSave}
-              disabled={!hasUnsavedChanges}
-          >
-              <Save size={16} /> <span className="text-label">Save</span>
-          </button>
-      </div>
-    </div>
-  );
-
-  if (loading || !session || !account) return <div className="daw-container">Loading...</div>;
-
-  const bpm = session.bpm || 120;
-  const secondsPerBeat = 60 / bpm;
-  const secondsPerBar = secondsPerBeat * 4; 
-  const pxPerBar = secondsPerBar * PX_PER_SECOND;
-  const totalBars = Math.ceil((session.durationInSeconds + 30) / secondsPerBar);
+  if (loading || !session) return <div className="daw-container loading"><Loader className="spin" /> Loading Session...</div>;
 
   return (
-    <div className="daw-container" onMouseMove={handleGlobalMouseMove} onMouseUp={handleGlobalMouseUp}>
-      
-      <header className="daw-header">
-        <div className="left-group">
-            <button className="back-btn" onClick={handleGoBack} title="Back">
-                <ArrowLeft size={20} />
-            </button>
-            <div className="session-info">
-              <span className="name">{session.name}</span> 
-              <span className='bpm'> {session.bpm} BPM</span>  
-            </div>
-        </div>
+    <div className="daw-container">
         
-        {/* Desktop Controls */}
-        <div className="desktop-controls-container">
-            {renderTransportControls(false)}
+        {/* 1. HEADER (Compact) */}
+        <header className="daw-header">
+            <div className="left-group">
+                <button className="icon-btn" onClick={() => navigate(-1)}><ArrowLeft /></button>
+                <div className="project-meta">
+                    <span className="title">{session.name}</span>
+                    <div className="metrics">
+                        <span>{session.bpm} BPM</span>
+                        <span className="dot">•</span>
+                        <span>{DEFAULT_BARS} BAR</span>
+                    </div>
+                </div>
+            </div>
+            
+            <div className="right-group">
+                <button 
+                   onClick={handleSave} 
+                   disabled={!hasUnsavedChanges}
+                   className={`icon-btn ${hasUnsavedChanges ? 'unsaved' : ''}`}
+                >
+                   <Save size={20} />
+                </button>
+                <button 
+                   onClick={togglePlay}
+                   className={`play-btn ${isPlaying ? 'playing' : ''}`}
+                >
+                   {isPlaying ? <Square fill="currentColor" size={18} /> : <Play fill="currentColor" size={20} className="ml-0.5" />}
+                </button>
+            </div>
+        </header>
+
+        {/* 2. GLOBAL PROGRESS BAR (Timeline Viz) */}
+        <div className="global-progress-track">
+            <div 
+                className="progress-fill" 
+                style={{ width: `${progress}%`, transition: progress < 1 ? 'none' : 'width 0.1s linear' }} 
+            />
         </div>
 
-        <button className="mobile-sidebar-toggle" onClick={() => setIsSidebarOpen(!isSidebarOpen)}>
-            {isSidebarOpen ? <X size={20} /> : <Menu size={20} />}
-        </button>
-      </header>
+        {/* 3. TRACK LIST (Vertical Stack) */}
+        <div className="track-list">
+            {session.tracks.length === 0 && (
+                <div className="empty-state">
+                    <Mic size={48} />
+                    <p>No loops yet.</p>
+                    <p className="sub">Tap the red button to start jamming.</p>
+                </div>
+            )}
 
-      <div className="daw-workspace">
-        
-        {/* Sidebar */}
-        <div className={`track-headers ${isSidebarOpen ? 'open' : ''}`}>
-            <div className="mobile-sidebar-header">
-                <h3>Tracks</h3>
-                <button onClick={() => setIsSidebarOpen(false)}><X size={16} /></button>
-            </div>
+            {session.tracks.map(track => {
+                // @ts-ignore
+                const isEditing = editingTrackId === track.id;
+                // @ts-ignore
+                const offset = track.latencyOffsetMs || 0;
 
-            <div className='timeline-ruler-placeholder'></div>
-            {session.tracks.sort((a,b) => a.order - b.order).map(track => (
-                <div key={track.id} className="track-control-panel">
-                    <div className="track-name-row">
-                        {editingTrackId === track.id ? (
-                            <input autoFocus value={track.name} onChange={(e) => handleNameChange(track.id, e.target.value)} onBlur={() => setEditingTrackId(null)} />
-                        ) : (
-                            <span onClick={() => setEditingTrackId(track.id)} className="name-label">{track.name}</span>
+                return (
+                    <div key={track.id} className={`track-card ${isEditing ? 'editing' : ''} ${track.isMuted ? 'muted' : ''}`}>
+                        
+                        {/* A. Card Main */}
+                        <div className="card-main">
+                            <div className="track-controls">
+                                <button 
+                                    className={`control-btn mute ${track.isMuted ? 'active' : ''}`}
+                                    onClick={() => toggleMute(track.id)}
+                                >
+                                    {track.isMuted ? <VolumeX size={16} /> : <Volume2 size={16} />}
+                                </button>
+                            </div>
+
+                            <div className="waveform-viz">
+                                {/* Basit Fake Waveform - Gerçek veri yoksa */}
+                                {Array.from({length: 20}).map((_, i) => (
+                                    <div key={i} className="bar" style={{ height: `${30 + Math.random() * 70}%` }} />
+                                ))}
+                            </div>
+
+                            <div className="track-actions">
+                                <button className="icon-btn sm" onClick={() => setEditingTrackId(isEditing ? null : track.id)}>
+                                    <Settings size={18} />
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* B. Slip Edit Drawer */}
+                        {isEditing && (
+                            <div className="slip-drawer">
+                                <div className="info-row">
+                                    <span className="label">LATENCY FIX</span>
+                                    <span className="value">{offset > 0 ? '+' : ''}{offset}ms</span>
+                                </div>
+                                
+                                <div className="slip-visual">
+                                    <div className="center-marker" />
+                                    <div className="slip-content" style={{ transform: `translateX(${offset / 2}px)` }}>
+                                        {/* Temsili kayan dalga */}
+                                        <div className="wave-strip" />
+                                    </div>
+                                </div>
+
+                                <div className="nudge-controls">
+                                    <button onClick={() => nudgeTrack(track.id, -LATENCY_STEP_MS)}>&lt; Nudge</button>
+                                    <button className="delete-btn" onClick={() => deleteTrack(track.id)}><Trash2 size={14} /> Delete</button>
+                                    <button onClick={() => nudgeTrack(track.id, LATENCY_STEP_MS)}>Nudge &gt;</button>
+                                </div>
+                            </div>
                         )}
                     </div>
-                    <div className="track-actions">
-                        <button 
-                            className={`arm ${armedTrackId === track.id ? 'active' : ''}`} 
-                            onClick={() => toggleArm(track.id)}
-                        >
-                            R
-                        </button>
-                        
-                        <button className={`mute ${track.isMuted ? 'active' : ''}`} onClick={() => toggleMute(track.id)}>M</button>
-                        <button className={`solo ${track.isSolo ? 'active' : ''}`} onClick={() => toggleSolo(track.id)}>S</button>
-                        <button className="delete" onClick={() => handleRemoveTrack(track.id)}><Trash2 size={12}/></button>
-                    </div>
-                    <div className="track-sliders">
-                        <Volume2 size={12} />
-                        <input type="range" min="-60" max="6" step="1" value={track.volumeDb} onChange={(e) => handleVolumeChange(track.id, Number(e.target.value))} />
-                    </div>
-                </div>
-            ))}
-             <div className="add-track-container">
-                <button className="btn-add-track" onClick={() => setIsAddModalOpen(true)}><Plus size={16} /> Add Track</button>
-            </div>
+                );
+            })}
+            
+            {/* Boşluk bırak ki FAB altında kalmasın */}
+            <div style={{ height: '100px' }} />
         </div>
-        
-        {/* Overlay for mobile when sidebar is open */}
-        {isSidebarOpen && <div className="sidebar-overlay" onClick={() => setIsSidebarOpen(false)} />}
 
-        <div className="timeline-area" ref={timelineRef}>
-          <div className="timeline-ruler" onMouseDown={handleRulerMouseDown}>
-             {Array.from({ length: totalBars }).map((_, i) => {
-               const isMajor = i % 4 === 0;
-               return (
-                <div key={i} style={{ 
-                    position: 'absolute', left: i * pxPerBar, 
-                    borderLeft: isMajor ? '1px solid #666' : '1px solid #333', 
-                    height: isMajor ? '100%' : '50%', bottom: 0, paddingLeft: '4px', 
-                    pointerEvents: 'none', color: isMajor ? '#888' : 'transparent'
-                }}>
-                  {i + 1}
-                </div>
-             )})}
-             <>
-                <div className={`loop-region ${!isLooping ? 'inactive' : ''}`} style={{ left: loopStart * PX_PER_SECOND, width: (loopEnd - loopStart) * PX_PER_SECOND }} />
-                <div className={`loop-handle start ${!isLooping ? 'inactive' : ''}`} style={{ left: loopStart * PX_PER_SECOND }} onMouseDown={(e) => handleLoopDragStart(e, 'loop-start')} title="Drag Loop Start" />
-                <div className={`loop-handle end ${!isLooping ? 'inactive' : ''}`} style={{ left: loopEnd * PX_PER_SECOND }} onMouseDown={(e) => handleLoopDragStart(e, 'loop-end')} title="Drag Loop End" />
-            </>
-          </div>
-
-          <div className="playhead" style={{ left: `${transportTime * PX_PER_SECOND}px` }} />
-
-          {session.tracks.sort((a,b) => a.order - b.order).map(track => {
-             const visibleDuration = track.durationInSeconds - track.startTrimInSeconds - track.endTrimInSeconds;
-             const hasAudio = track.audioFileUrl && track.durationInSeconds > 0;
-             return (
-              <div key={track.id} className={`track-lane ${armedTrackId === track.id ? 'armed' : ''}`}>
-                {hasAudio && (
-                    <div className="audio-clip" style={{ left: `${track.startTimeInSeconds * PX_PER_SECOND}px`, width: `${visibleDuration * PX_PER_SECOND}px` }}
-                    onMouseDown={(e) => handleClipMouseDown(e, track.id, 'move-clip')}
-                    >
-                        <div className="resize-handle left" onMouseDown={(e) => handleClipMouseDown(e, track.id, 'trim-left')} />
-                        <div className="clip-content">
-                            <div className="clip-name">{track.name}</div>
+        {/* 4. OVERLAY: RECORDING STATE */}
+        {recordingState !== 'idle' && (
+            <div className="recording-overlay">
+                {recordingState === 'counting' ? (
+                    <div className="count-in">{countIn}</div>
+                ) : (
+                    <div className="recording-status">
+                        <div className="rec-dot" />
+                        <span>RECORDING...</span>
+                        <div className="rec-progress-bar">
+                            <div className="fill" style={{ width: `${progress}%` }} />
                         </div>
-                        <div className="resize-handle right" onMouseDown={(e) => handleClipMouseDown(e, track.id, 'trim-right')} />
                     </div>
                 )}
-                {!hasAudio && armedTrackId === track.id && isRecording && (
-                    <div className="recording-indicator" style={{ left: `${recordingStartTime * PX_PER_SECOND}px`}}>
-                         Recording...
-                    </div>
-                )}
-              </div>
-            );
-          })}
-          <div className="track-lane empty-lane"></div>
+            </div>
+        )}
+
+        {/* 5. FAB (Action Button) */}
+        <div className="fab-container">
+            <button 
+                className="record-fab"
+                onClick={handleRecordSequence}
+                disabled={recordingState !== 'idle'}
+            >
+                <div className="inner-circle" />
+            </button>
         </div>
-      </div>
-
-      {/* Mobile Bottom Controls */}
-      <div className="mobile-bottom-controls">
-        {renderTransportControls(true)}
-      </div>
-
-      <Modal 
-        isOpen={isAddModalOpen} 
-        onClose={resetModal} 
-        title="Add Track"
-      >
-        <div className="add-track-modal-content">
-            {addMode === 'select' && (
-                <div className="modal-options">
-                    <button className="modal-option-btn" onClick={() => setAddMode('upload')}>
-                        <Upload size={32} />
-                        <span>Upload Audio File</span>
-                    </button>
-                    <button className="modal-option-btn" onClick={handleCreateEmptyTrack}>
-                        <Disc size={32} />
-                        <span>Empty Audio Track</span>
-                    </button>
-                </div>
-            )}
-
-            {addMode === 'upload' && (
-                 <div className="upload-section">
-                    <p>Select an audio file (WAV, MP3, etc.)</p>
-                    <input type="file" ref={fileInputRef} onChange={(e) => e.target.files?.[0] && handleConfirmUpload(e.target.files[0])} accept="audio/*" />
-                    <div className="modal-footer">
-                        <button onClick={() => setAddMode('select')}>Back</button>
-                    </div>
-                 </div>
-            )}
-        </div>
-      </Modal>
     </div>
   );
 }

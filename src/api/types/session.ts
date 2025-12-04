@@ -11,7 +11,7 @@ export interface Session {
     bpm: number;
 
     loopStartInSeconds: number;
-    lookEndInSeconds: number;
+    loopEndInSeconds: number;
 
     isPublic: boolean;
     isStarred: boolean;
